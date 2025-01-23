@@ -1,4 +1,12 @@
 import random
+from itertools import combinations
+from dataclasses import dataclass
+
+@dataclass
+class GroupCanidates:
+    members: list[int]
+    colisions: int
+
 
 class InvalideGroupSize(Exception):
     pass
@@ -13,18 +21,10 @@ class GroupCalculator:
         self.__n_groups: int = n_groups
         self.__group_size: int = n_students // n_groups
         
+        self.__whitlist: dict[int, set[int]] | None = None
+        self.counter: int = 0
         self.groups: dict[int, dict[str, list[str]]] = {}
 
-    def __compute_blocklist(self) -> dict[int, set[int]]: 
-        blocklist = {student: set() for student in range(self.__n_students)}
-        for iteration in self.groups.values():
-            for group in iteration.values():
-                for student in group:
-                    if student == -1:
-                        continue
-                    blocklist[student] = set(list(blocklist[student]) + group)            
-        return blocklist
-    
     @staticmethod
     def get_group_letter(group: int) -> str:
         res = "" 
@@ -33,57 +33,79 @@ class GroupCalculator:
         return f"{res}{chr(65 + group)}"
 
 
-    def compute_prefered_group_members(self, blocklist: dict[int, set[int]], students_list: list[int]) -> list[int]:
-        groupleader = students_list[0]
-        students_list.remove(groupleader)
-        # Finds the best group members for the groupleader
-        return [selected_student for selected_student in students_list
-                if selected_student not in blocklist[groupleader] 
-                and groupleader not in blocklist[selected_student]]
-    
 
     # filter(GroupCalculator.compute_prefered_group_members(selected_student, blocklist, student_list), lambda x: x == student) = None
 
     def create_groups(self):
         student_list_generator = lambda: list(range(self.__n_students))
+        students_list: list[int] = student_list_generator()
+        iteration: int = max(self.groups.keys(), default=-1) + 1
 
-        iteration: int = 0 if self.groups == {} else sorted(self.groups.keys())[-1] + 1
-        blocklist: dict[int, set[int]] = self.__compute_blocklist()
-        students_list:  list[int] = student_list_generator()
-        random.shuffle(students_list)
+        #random.shuffle(students_list)
 
-        self.groups[iteration] = {}
+        if self.__whitlist is None:
+            self.__whitlist = {student: list(filter(lambda x: x != student, students_list)) for student in students_list}
 
-        for i in range(self.__n_groups):
-            # Compute possible group members
-            group_members = [students_list[0]] + self.compute_prefered_group_members( blocklist, students_list.copy())
-            group_members = [ member for (i, member) in  enumerate(group_members) if i < self.__group_size]
-            # Remove group members from student list
-            students_list = [i for i in students_list if i not in group_members]
-            # Select group members
-            self.groups[iteration][GroupCalculator.get_group_letter(i)] = group_members
 
-        # Fill up groups with remaining students, or dummy students
-        for student in students_list:
-            available_groups = [group for group in self.groups[iteration].values() if len(group) < self.__group_size]
-            if available_groups == []:
-                # If all groups have reached the median size, we still need to fill up the groups
-                available_groups = [group for group in self.groups[iteration].values()]
-            # We need the original student list to fill up
-            optimal_members = self.compute_prefered_group_members(blocklist, student_list_generator())
-
-            # Choose the group to add the student to
-            # Negative modifier to discourage adding students to groups that are bigger than the median size
-            available_groups.sort(key=lambda x: sum([1 for group in optimal_members if group in x ]
-                                                    + [-1 if len(x) > self.__group_size else 0]))
+        # Compute canidates for the group
+        candidates: dict[int, list[GroupCanidates]] = {groupleader: [] for groupleader in students_list}
+        for leader in candidates:
+            group_combs = combinations(self.__whitlist[leader], self.__group_size - 1)
+            for group in group_combs:
+                # Maby add groupleader to group
+                colisions = 0
+                for member in group:
+                    colisions += sum(map(lambda x: member not in self.__whitlist[x], filter(lambda x: x != member, group)))
+                candidates[leader].append(GroupCanidates(group, colisions))
+            candidates[leader] = sorted(candidates[leader], key=lambda x: x.colisions)
             
-            available_groups[0].append(student)
+        
+        # Sort > Most matches first, least colisions first
+        candidates_iter = sorted(candidates.items(), key=lambda item: len(item[1]))
 
-        for group in self.groups[iteration].values():
-            while len(group) < self.__group_size:
-                print(f"Group {iteration}{group} hat to be filled up with dummy")
-                group.append(-1)
+        # Try Grouplayout
+        n_groups = 0
+        group_layout: dict[str, list[int]] = {key: [] for key in map(GroupCalculator.get_group_letter, range(self.__n_groups))}
+        for leader, candidates in candidates_iter:
+            if leader not in students_list:
+                continue
+            for candidate in candidates:
+                if False in map(lambda x: x in students_list, candidate.members) \
+                    or leader not in students_list:
+                    continue
+                
+                group_name = GroupCalculator.get_group_letter(n_groups)
+                group_layout[group_name] = [leader] + list(candidate.members)
 
+                for member in group_layout[group_name]:
+                    self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group_name], self.__whitlist[member]))
+                    students_list.remove(member)
+                
+                n_groups += 1
+                break
+
+        # Add left over students to groups
+        for student in students_list:
+            print("Backup")
+            # group[1] is the group members, group[0] is name of the group
+            prefered_group_key = []
+            for name, constelation in group_layout.items():
+                colisions = sum(map(lambda x: x not in self.__whitlist[student], constelation))
+                if len(constelation) > self.__group_size:
+                    colisions += 10
+                prefered_group_key.append((name, colisions))
+
+            prefered_group = group_layout[sorted(prefered_group_key, key=lambda x: x[1])[0][0]]
+            prefered_group.append(student)
+            for member in prefered_group:
+                self.__whitlist[member] = list(filter(lambda x: x not in prefered_group, self.__whitlist[member]))
+
+
+        # The whitlist was updated during the group creation
+
+        self.groups[iteration] = group_layout
+    
+        self.counter += 1
         return self.groups
     
     def can_repeat(self):
@@ -92,7 +114,7 @@ class GroupCalculator:
 
 if __name__ == "__main__":
     calc = GroupCalculator(10, 3)
-    for i in range(0, 5):
+    for i in range(0, 3):
         calc.create_groups()
     print(calc.create_groups())
 

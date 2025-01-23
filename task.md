@@ -43,4 +43,3 @@ Um Noten zu vergeben, wird der Code auf folgende Kriterien geprüft:
 - **Dokumentation**: Der Code ist gut dokumentiert (Sphinx) und leicht zu verstehen.
 - **Code Review**: Wir werden euren Algorithmus gemeinsam besprechen. Ihr solltet eure Lösung erklären können.
 - **Erweiterung**: Für sehr gute Noten (>12Pt) sollte die Erweiterung der Funktionalität korrekt implementiert und dokumentiert sein.
-
