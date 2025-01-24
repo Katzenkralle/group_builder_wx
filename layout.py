@@ -33,6 +33,16 @@ class entrypoint ( wx.Frame ):
 
         gSizer1 = wx.GridSizer( 0, 2, 0, 0 )
 
+        self.m_staticText7 = wx.StaticText( self.m_panel3, wx.ID_ANY, _(u"Wähle die Gruppenkonstilation aus:"), wx.DefaultPosition, wx.DefaultSize, 0 )
+        self.m_staticText7.Wrap( -1 )
+
+        gSizer1.Add( self.m_staticText7, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+        self.m_staticText81 = wx.StaticText( self.m_panel3, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+        self.m_staticText81.Wrap( -1 )
+
+        gSizer1.Add( self.m_staticText81, 0, wx.ALL, 5 )
+
         self.m_staticText1 = wx.StaticText( self.m_panel3, wx.ID_ANY, _(u"Anzahl Gruppen:"), wx.DefaultPosition, wx.DefaultSize, 0 )
         self.m_staticText1.Wrap( -1 )
 
@@ -70,6 +80,8 @@ class entrypoint ( wx.Frame ):
         gSizer2.Add( self.m_staticText4, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 
         self.csv_filepicker = wx.FilePickerCtrl( self.m_panel4, wx.ID_ANY, u"/home/someone/test.csv", _(u"Select a CSV file"), _(u"*.csv;*.CSV"), wx.DefaultPosition, wx.DefaultSize, wx.FLP_DEFAULT_STYLE )
+        self.csv_filepicker.SetMinSize( wx.Size( 200,-1 ) )
+
         gSizer2.Add( self.csv_filepicker, 0, wx.ALL|wx.ALIGN_RIGHT, 5 )
 
         self.m_staticText5 = wx.StaticText( self.m_panel4, wx.ID_ANY, _(u"Spalte der Mitglieder:"), wx.DefaultPosition, wx.DefaultSize, 0 )
@@ -77,10 +89,12 @@ class entrypoint ( wx.Frame ):
 
         gSizer2.Add( self.m_staticText5, 0, wx.ALL, 5 )
 
-        m_choice1Choices = []
-        self.m_choice1 = wx.Choice( self.m_panel4, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_choice1Choices, 0 )
-        self.m_choice1.SetSelection( 0 )
-        gSizer2.Add( self.m_choice1, 0, wx.ALL|wx.ALIGN_RIGHT, 5 )
+        members_header_csvChoices = []
+        self.members_header_csv = wx.Choice( self.m_panel4, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, members_header_csvChoices, 0 )
+        self.members_header_csv.SetSelection( 0 )
+        self.members_header_csv.SetMinSize( wx.Size( 200,-1 ) )
+
+        gSizer2.Add( self.members_header_csv, 0, wx.ALL|wx.ALIGN_RIGHT, 5 )
 
         self.m_staticText6 = wx.StaticText( self.m_panel4, wx.ID_ANY, _(u"Gewünschte Gruppenanzahl:"), wx.DefaultPosition, wx.DefaultSize, 0 )
         self.m_staticText6.Wrap( -1 )
@@ -89,6 +103,8 @@ class entrypoint ( wx.Frame ):
 
         combo_groups_csvChoices = []
         self.combo_groups_csv = wx.ComboBox( self.m_panel4, wx.ID_ANY, _(u"2"), wx.DefaultPosition, wx.DefaultSize, combo_groups_csvChoices, 0 )
+        self.combo_groups_csv.SetMinSize( wx.Size( 200,-1 ) )
+
         gSizer2.Add( self.combo_groups_csv, 0, wx.ALL|wx.ALIGN_RIGHT, 5 )
 
 
@@ -156,24 +172,32 @@ class entrypoint ( wx.Frame ):
 
         bSizer2.Add( bSizer9, 1, wx.EXPAND, 5 )
 
-        bSizer10 = wx.BoxSizer( wx.VERTICAL )
+        bSizer10 = wx.BoxSizer( wx.HORIZONTAL )
+
+        bSizer7 = wx.BoxSizer( wx.VERTICAL )
+
+        self.edit_aliases_btn = wx.Button( self, wx.ID_ANY, _(u"Alias bearbeiten"), wx.DefaultPosition, wx.DefaultSize, 0 )
+        bSizer7.Add( self.edit_aliases_btn, 0, wx.ALL, 5 )
+
+
+        bSizer10.Add( bSizer7, 1, wx.EXPAND, 5 )
 
         bSizer11 = wx.BoxSizer( wx.HORIZONTAL )
 
-        self.export_csv_btn = wx.Button( self, wx.ID_ANY, _(u"Export to CSV"), wx.DefaultPosition, wx.DefaultSize, 0 )
-        bSizer11.Add( self.export_csv_btn, 0, wx.ALL, 5 )
-
         self.reset_btn = wx.Button( self, wx.ID_ANY, _(u"Zurücksetzen "), wx.DefaultPosition, wx.DefaultSize, 0 )
         bSizer11.Add( self.reset_btn, 0, wx.ALL, 5 )
+
+        self.export_csv_btn = wx.Button( self, wx.ID_ANY, _(u"Export to CSV"), wx.DefaultPosition, wx.DefaultSize, 0 )
+        bSizer11.Add( self.export_csv_btn, 0, wx.ALL, 5 )
 
         self.new_iteration_btn = wx.Button( self, wx.ID_ANY, _(u"Neu Zusammensetzen"), wx.DefaultPosition, wx.DefaultSize, 0 )
         bSizer11.Add( self.new_iteration_btn, 0, wx.ALL, 5 )
 
 
-        bSizer10.Add( bSizer11, 0, wx.ALIGN_RIGHT, 5 )
+        bSizer10.Add( bSizer11, 0, wx.ALIGN_CENTER_VERTICAL, 5 )
 
 
-        bSizer2.Add( bSizer10, 0, wx.ALIGN_RIGHT, 5 )
+        bSizer2.Add( bSizer10, 0, wx.EXPAND, 5 )
 
 
         self.SetSizer( bSizer2 )

@@ -1,9 +1,10 @@
 import wx.grid
 import layout
 import wx
-from group_compositor import GroupCalculator
+from wx.lib.mixins.grid import GridAutoEditMixin
+import group_compositor
 
-group_creator = GroupCalculator()
+group_creator = group_compositor.GroupCalculator()
 app = wx.App(False)
 
 class GuiHandler(layout.entrypoint):
@@ -16,9 +17,9 @@ class GuiHandler(layout.entrypoint):
         self.combo_groups_csv.Set([str(i) for i in range(2, 11)])
         self.combo_members.Set([str(i) for i in range(10, 101)])
         
-        self.combo_groups_num.Bind(wx.EVT_TEXT, self.on_group_change)
-        self.combo_groups_csv.Bind(wx.EVT_TEXT, self.on_group_change)
-        self.combo_members.Bind(wx.EVT_TEXT, self.on_member_change)
+        self.combo_groups_num.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("group", e.GetString()))
+        self.combo_groups_csv.Bind(wx.EVT_TEXT,lambda e: self.on_group_composition_value_change("group", e.GetString()))
+        self.combo_members.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("member", e.GetString()))
 
         self.combo_groups_num.Bind(wx.EVT_CHAR, self.only_allow_number)
         self.combo_groups_csv.Bind(wx.EVT_CHAR, self.only_allow_number)
@@ -26,21 +27,30 @@ class GuiHandler(layout.entrypoint):
 
         self.notebook_modes.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_change)
 
+        self.edit_aliases_btn.Bind(wx.EVT_BUTTON, self.on_edit_aliases)
         self.new_iteration_btn.Bind(wx.EVT_BUTTON, self.on_new_iteration)
+        self.reset_btn.Bind(wx.EVT_BUTTON, self.on_reset)
+        self.export_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_csv)
 
         self.combo_groups_num.SetValue("4")
         self.combo_groups_csv.SetValue("4")
         self.combo_members.SetValue("12")
 
+        self.csv_filepicker.Bind(wx.EVT_FILEPICKER_CHANGED, self.on_csv_fileselect)
+        self.members_header_csv.Bind(wx.EVT_CHOICE, lambda e: group_creator.select_from_csv_file(e.GetString()))
 
         self.iterations_choise.Bind(wx.EVT_CHOICE, self.on_iteration_view_change)
-
-
+        
+        self.group_grid.EnableEditing(True)
         self.group_grid.SetSelectionMode(wx.grid.Grid.GridSelectNone)
         self.group_grid.SetCellHighlightPenWidth(0)
         self.group_grid.SetCellHighlightROPenWidth(0)
         self.group_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_grid_interaction)
         self.group_grid.Bind(wx.grid.EVT_GRID_LABEL_LEFT_CLICK, lambda e: e.StopPropagation())
+        self.group_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_DCLICK, lambda e: e.StopPropagation())
+        self.group_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_grid_value_change)
+
+        self.on_new_iteration(None)
 
     def only_allow_number(self, event):
         """
@@ -56,31 +66,72 @@ class GuiHandler(layout.entrypoint):
         else:
             event.StopPropagation()  # Reject the input
 
+    def on_csv_fileselect(self, event):
+        headers = group_creator.read_csv_columns(event.GetPath())
+        self.members_header_csv.Set(headers)
+        self.members_header_csv.SetSelection(0)
+        # Must trigger mannually, because the event is not triggered by the SetSelection method
+        group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection()) 
+
+    def on_export_csv(self, event):
+        if not group_creator.get_current_group():
+            wx.MessageBox("No groups to export.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+        exit_code = wx.FileDialog(self, "Save CSV file", wildcard="CSV files (*.csv)|*.csv", defaultFile="GroupeExport.csv" ,style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+        if exit_code.ShowModal() == wx.ID_CANCEL:
+            return
+        path = exit_code.GetPath()
+        try:
+            group_creator.export_group_as_csv(group_creator.get_iteration(), path)
+        except:
+            wx.MessageBox("An error occurred while exporting the CSV file.", "Error", wx.OK | wx.ICON_ERROR)
+
     def on_iteration_view_change(self, event):
         group = group_creator.get_current_group(iteration=int(event.GetString()), replace_alias=False)
         self.rerender_groups(group)
 
+    def on_reset(self, _, generate_new = True):
+        group_creator.reset_groups()
+        group_creator.alias = {}
+        if self.notebook_modes.GetSelection() == 1 and self.members_header_csv.GetStringSelection():
+            group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection())
+        
+        if generate_new:
+            self.on_new_iteration(None)
+        
     def on_page_change(self, event):
         match event.GetSelection():
             case 0:
-                self.on_group_change(None, int(self.combo_groups_num.GetValue()))
+                self.on_group_composition_value_change("member", int(self.combo_members.GetValue()))
+                self.on_group_composition_value_change("group", int(self.combo_groups_num.GetValue()))
             case 1:
-                self.on_group_change(None, int(self.combo_groups_csv.GetValue()))
+                group_creator.n_students = None
+                self.on_group_composition_value_change("group", int(self.combo_groups_csv.GetValue()))
             case  _:
                 print("Invalid page. This should not happen")
+        self.on_reset(None, generate_new=False)
+        self.reset_view()
+        
     
-    def on_group_change(self, event = None, n_groups = None):
-        inp = n_groups if n_groups else int(event.GetString())
-        group_creator.n_groups = inp
-
-    def on_member_change(self, event):
-        group_creator.n_students = int(event.GetString())
+    def on_group_composition_value_change(self, target: str, value = None):
+        try:
+            value = int(value)
+        except ValueError:
+            value = None
+        match target:
+            case "group":
+                group_creator.n_groups = value
+            case "member":
+                group_creator.n_students = value
+            case None:
+                pass
+        return
 
     def on_grid_interaction(self, event):
         # Get location of the cell
+        row = event.GetRow()
         match event.GetCol():
             case 0:
-                row = event.GetRow()
                 cell_value = self.group_grid.GetCellValue(row, 0)
                 if not cell_value:
                     event.StopPropagation()
@@ -92,15 +143,30 @@ class GuiHandler(layout.entrypoint):
                 self.render_groupmembers(group_creator.get_current_group()[cell_value])
 
                 event.StopPropagation()
-
+                self.Refresh()
+                return
             case 2:
-                pass
+                self.group_grid.SetGridCursor(row, 2)
+                try:
+                    self.group_grid.EnableCellEditControl(True)
+                    event.StopPropagation()
+                    return
+                except wx._core.wxAssertionError:
+                    pass
             case _:
-                event.Skip()
-
-        self.Refresh()
+                pass
+        event.Skip()
         return
     
+    def on_grid_value_change(self, event):
+        row = event.GetRow()
+        col = event.GetCol()
+        member = self.group_grid.GetCellValue(row, 1)
+        if col == 2 and member:
+            group_creator.alias[int(member)] = self.group_grid.GetCellValue(row, 2)
+        event.Skip()
+        return
+
     def render_groupmembers(self, group):
         counter = 0
         while True:
@@ -112,31 +178,86 @@ class GuiHandler(layout.entrypoint):
         for i, member in enumerate(group):
             self.group_grid.SetCellValue(i, 1, str(member))
             self.group_grid.SetCellValue(i, 2, str(group_creator.alias.get(member, "")))
-        
+            self.group_grid.SetCellEditor(i, 2, wx.grid.GridCellTextEditor())
+            self.group_grid.SetReadOnly(i, 2, False)
+    
+    def reset_view(self):
+        try:
+            self.group_grid.DeleteRows(0, self.group_grid.GetNumberRows())
+            self.iterations_choise.Set([])
+        except:
+            pass
+
     def rerender_groups(self, groups):
         # Update table
         try:
             self.group_grid.DeleteRows(0, self.group_grid.GetNumberRows())
         except wx._core.wxAssertionError:
             pass
-        self.group_grid.AppendRows(max([group_creator.n_students, len(groups)]))
+        n_rows = max([group_creator.n_students, len(groups)])
+        self.group_grid.AppendRows(n_rows)
+        for i in range(n_rows):
+            self.group_grid.SetReadOnly(i, 0, True)
+            self.group_grid.SetReadOnly(i, 1, True)
+            self.group_grid.SetReadOnly(i, 2, True)
         # First, set the groups
         for i, group in enumerate(groups):
             self.group_grid.SetCellValue(i, 0, group)
         
-        self.group_grid.SetCellBackgroundColour(0, 0, GuiHandler.highlighte_color)
+        if "" not in groups:
+            # this is the case when the alias editing is active
+            self.group_grid.SetCellBackgroundColour(0, 0, GuiHandler.highlighte_color)
         self.render_groupmembers(groups[list(groups.keys())[0]])
 
         self.Refresh()
 
-    def on_new_iteration(self, event):
-        print(group_creator.create_groups())
+    def on_new_iteration(self, _):
+        try:
+            print(group_creator.create_groups())
+        except ValueError:
+            if self.notebook_modes.GetSelection() == 0:
+                wx.MessageBox("Ungültig Gruppenkomposition.", "Error", wx.OK | wx.ICON_ERROR)
+            else:
+                self.reset_view()
+            return
+        except group_compositor.InvalideGroupSize as e:
+            wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
+            return
         new_group = group_creator.get_current_group()
         self.iterations_choise.Set(list(map(lambda x: str(x), range(group_creator.get_iteration()+1))))
         self.iterations_choise.SetSelection(group_creator.get_iteration())
         self.rerender_groups(new_group)
         
-            
+    def on_edit_aliases(self, _):
+        if self.iterations_choise.GetSelection() == wx.NOT_FOUND:
+            wx.MessageBox("Keine zu bearbeitenden Gruppen vorhanden.", "Error", wx.OK | wx.ICON_ERROR)
+        ui_enabled = True
+        if self.edit_aliases_btn.GetLabel() == "Alias bearbeiten":
+            self.edit_aliases_btn.SetLabel("Fertig")
+            curent_group = group_creator.get_current_group(self.iterations_choise.GetSelection())
+            acumulated_members = []
+            for group in curent_group:
+                for member in curent_group[group]:
+                    acumulated_members.append(member)
+            acumulated_members  = list(sorted(acumulated_members))
+            self.rerender_groups({"": acumulated_members})
+            ui_enabled = False
+        else:
+            self.edit_aliases_btn.SetLabel("Alias bearbeiten")
+            self.rerender_groups(group_creator.get_current_group(self.iterations_choise.GetSelection()))
+        self.combo_groups_num.Enable(ui_enabled)
+        self.combo_groups_csv.Enable(ui_enabled)
+        self.combo_members.Enable(ui_enabled)
+        self.notebook_modes.Enable(ui_enabled)
+        self.new_iteration_btn.Enable(ui_enabled)
+        self.reset_btn.Enable(ui_enabled)
+        self.export_csv_btn.Enable(ui_enabled)
+        self.combo_groups_csv.Enable(ui_enabled)
+        self.combo_members.Enable(ui_enabled)
+        self.csv_filepicker.Enable(ui_enabled)
+        self.members_header_csv.Enable(ui_enabled)
+        self.iterations_choise.Enable(ui_enabled)
+
 
 
 if __name__ == "__main__":

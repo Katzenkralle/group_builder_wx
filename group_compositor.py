@@ -3,6 +3,7 @@ from itertools import combinations
 from dataclasses import dataclass
 from utils import test_uniqueness
 import pandas as pd
+import re
 
 @dataclass
 class GroupCanidates:
@@ -54,7 +55,7 @@ class GroupCalculator:
 
     @n_students.setter
     def n_students(self, value: int):
-        if value < 0:
+        if value is not None and value < 0:
             raise ValueError("The number of students must be greater than 0")
         self.reset_groups()
         self.__n_students = value
@@ -66,7 +67,7 @@ class GroupCalculator:
     
     @n_groups.setter
     def n_groups(self, value: int):
-        if value < 0:
+        if value is not None and value < 0:
             raise ValueError("The number of groups must be greater than 0")
         self.reset_groups()
         self.__n_groups = value
@@ -76,8 +77,11 @@ class GroupCalculator:
         return max(self.groups.keys(), default=-1) 
 
     def create_groups(self):
-        student_list_generator = lambda: list(range(self.__n_students))
-        students_list: list[int] = student_list_generator()
+        if self.__n_students is None or self.__n_groups is None:
+            raise ValueError("The number of students and groups must be set before creating groups")
+        if self.__n_groups >= self.__n_students:
+            raise InvalideGroupSize("The number of students must be greater than the number of groups")
+        students_list: list[int] = list(range(self.__n_students))
 
         random.shuffle(students_list)
 
@@ -146,6 +150,8 @@ class GroupCalculator:
         return self.groups
     
     def get_current_group(self, iteration: int = None, replace_alias: bool = True):
+        if self.groups == {}:
+            return {}
         group = self.groups[max(self.groups.keys()) if iteration is None else iteration]
         return self.__replace_with_alias(group) if replace_alias else group
     
@@ -154,6 +160,15 @@ class GroupCalculator:
         for iteration, groups in ret_groups:
             ret_groups[iteration] = self.__replace_with_alias(groups)
         return ret_groups
+
+    def export_group_as_csv(self, iteration: int, path: str):
+        groups = self.get_current_group(iteration, replace_alias=False)
+        rows = []
+        for group, members in groups.items():
+            for member in members:
+                rows.append([group, member, self.alias.get(member, "")])
+        df = pd.DataFrame(rows, columns=["Group", "Member", "Alias"])
+        df.to_csv(path, index=False)
 
     def reset_groups(self):
         self.groups = {}
@@ -177,8 +192,15 @@ class GroupCalculator:
         df = pd.read_csv(self.__csv_path)
         if header_name not in df.columns:
             raise ValueError(f"Header '{header_name}' not found in CSV file.")
-        return df[header_name].tolist()
-
+        if "Member" not in df.columns:
+            row = df[header_name].tolist()
+        else:
+            # It most likly is a file that was exported from this program
+            [member, row] = [df["Member"].tolist(), df[header_name].tolist()]
+            row = list(map(lambda x: x[1], sorted(zip(member, row), key=lambda x: x[0])))
+        self.alias = {i: row[i] for i in range(0, len(row)) if pd.notnull(row[i])}
+        self.n_students = len(row)
+        return 
 
     def can_repeat(self):
         [mem_groups, mem_whitlist] = [self.groups, self.__whitlist]
