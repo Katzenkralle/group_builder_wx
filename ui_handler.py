@@ -1,5 +1,7 @@
 import wx.grid
-import layout
+import layout.main_frame as main_frame
+import layout.csv_input as csv_input
+import layout.num_input as num_input
 import wx
 from wx.lib.mixins.grid import GridAutoEditMixin
 import group_compositor
@@ -7,37 +9,99 @@ import group_compositor
 group_creator = group_compositor.GroupCalculator()
 app = wx.App(False)
 
-class GuiHandler(layout.entrypoint):
-    highlighte_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
-    background_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+GROUPS_INITIAL_VALUE = 4
+MEMBERS_INITIAL_VALUE = 12
 
+HIGHLIGHT_COLOR = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
+BACKGROUND_COLOR = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+
+class InpUtilsMixin:
+    def on_group_composition_value_change(self, target: str, value = None):
+        try:
+            value = int(value)
+        except ValueError:
+            value = None
+        match target:
+            case "group":
+                group_creator.n_groups = value
+            case "member":
+                group_creator.n_students = value
+            case None:
+                pass
+        return
+    
+    def only_allow_number(event):
+        """
+        Allows only numeric input for age and height fields.
+
+        Args:
+            event: The key event.
+        """
+        key_code = event.GetKeyCode()
+        # Check if the key is a number, backspace, or a control key (e.g., arrow keys)
+        if key_code in range(48, 58) or key_code in [wx.WXK_BACK, wx.WXK_RETURN]:
+            event.Skip()  # Allow the input
+        else:
+            event.StopPropagation()  # Reject the input
+
+class NumInpHandler(num_input.NumInput, InpUtilsMixin):
     def __init__(self, parent):
         super().__init__(parent)
-        self.combo_groups_num.Set([str(i) for i in range(2, 11)])
-        self.combo_groups_csv.Set([str(i) for i in range(2, 11)])
+        self.combo_groups.Set([str(i) for i in range(2, 11)])
         self.combo_members.Set([str(i) for i in range(10, 101)])
-        
-        self.combo_groups_num.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("group", e.GetString()))
-        self.combo_groups_csv.Bind(wx.EVT_TEXT,lambda e: self.on_group_composition_value_change("group", e.GetString()))
-        self.combo_members.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("member", e.GetString()))
 
-        self.combo_groups_num.Bind(wx.EVT_CHAR, self.only_allow_number)
-        self.combo_groups_csv.Bind(wx.EVT_CHAR, self.only_allow_number)
+        self.combo_groups.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("group", e.GetString()))
+        self.combo_members.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("member", e.GetString()))
+        self.combo_groups.Bind(wx.EVT_CHAR, self.only_allow_number)
         self.combo_members.Bind(wx.EVT_CHAR, self.only_allow_number)
+        self.combo_groups.SetValue(str(GROUPS_INITIAL_VALUE))
+        self.combo_members.SetValue(str(MEMBERS_INITIAL_VALUE))
+
+    def on_activation(self):
+        self.on_group_composition_value_change("member", int(self.combo_members.GetValue()))
+        self.on_group_composition_value_change("group", int(self.combo_groups.GetValue()))
+
+class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.combo_groups.Set([str(i) for i in range(2, 11)])
+        self.combo_groups.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("group", e.GetString()))
+        self.combo_groups.Bind(wx.EVT_CHAR, self.only_allow_number)
+        self.combo_groups.SetValue(str(GROUPS_INITIAL_VALUE))
+
+        self.csv_filepicker.Bind(wx.EVT_FILEPICKER_CHANGED, self.on_csv_fileselect)
+        self.members_header_csv.Bind(wx.EVT_CHOICE, lambda e: group_creator.select_from_csv_file(e.GetString()))
+    
+    def on_activation(self):
+        group_creator.n_students = None
+        self.on_group_composition_value_change("group", int(self.combo_groups.GetValue()))
+        if self.members_header_csv.GetStringSelection():
+            group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection())
+    
+    def on_csv_fileselect(self, event):
+        headers = group_creator.read_csv_columns(event.GetPath())
+        self.members_header_csv.Set(headers)
+        self.members_header_csv.SetSelection(0)
+        # Must trigger mannually, because the event is not triggered by the SetSelection method
+        group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection()) 
+
+
+
+class MainFrameHandler(main_frame.MainFrame):
+    
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.InpNum = NumInpHandler(self.notebook_modes)
+        self.InpCsv = CsvInpHandler(self.notebook_modes)
+        self.notebook_modes.AddPage(self.InpNum, "Mittels Eingabe", select=True)
+        self.notebook_modes.AddPage(self.InpCsv, "Mittels CSV-Datei")
 
         self.notebook_modes.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_change)
 
         self.edit_aliases_btn.Bind(wx.EVT_BUTTON, self.on_edit_aliases)
         self.new_iteration_btn.Bind(wx.EVT_BUTTON, self.on_new_iteration)
-        self.reset_btn.Bind(wx.EVT_BUTTON, self.on_reset)
+        self.reset_btn.Bind(wx.EVT_BUTTON, self.reset_state)
         self.export_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_csv)
-
-        self.combo_groups_num.SetValue("4")
-        self.combo_groups_csv.SetValue("4")
-        self.combo_members.SetValue("12")
-
-        self.csv_filepicker.Bind(wx.EVT_FILEPICKER_CHANGED, self.on_csv_fileselect)
-        self.members_header_csv.Bind(wx.EVT_CHOICE, lambda e: group_creator.select_from_csv_file(e.GetString()))
 
         self.iterations_choise.Bind(wx.EVT_CHOICE, self.on_iteration_view_change)
         
@@ -52,81 +116,34 @@ class GuiHandler(layout.entrypoint):
 
         self.on_new_iteration(None)
 
-    def only_allow_number(self, event):
-        """
-        Allows only numeric input for age and height fields.
+    def reset_state(self, _, generate_new = True):
+        group_creator.reset_groups()
+        group_creator.alias = {}
+        if generate_new:
+            self.on_new_iteration(None)
 
-        Args:
-            event: The key event.
-        """
-        key_code = event.GetKeyCode()
-        # Check if the key is a number, backspace, or a control key (e.g., arrow keys)
-        if key_code in range(48, 58) or key_code in [wx.WXK_BACK, wx.WXK_RETURN]:
-            event.Skip()  # Allow the input
-        else:
-            event.StopPropagation()  # Reject the input
-
-    def on_csv_fileselect(self, event):
-        headers = group_creator.read_csv_columns(event.GetPath())
-        self.members_header_csv.Set(headers)
-        self.members_header_csv.SetSelection(0)
-        # Must trigger mannually, because the event is not triggered by the SetSelection method
-        group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection()) 
-
-    def on_export_csv(self, event):
-        if not group_creator.get_current_group():
-            wx.MessageBox("No groups to export.", "Error", wx.OK | wx.ICON_ERROR)
-            return
-        exit_code = wx.FileDialog(self, "Save CSV file", wildcard="CSV files (*.csv)|*.csv", defaultFile="GroupeExport.csv" ,style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
-        if exit_code.ShowModal() == wx.ID_CANCEL:
-            return
-        path = exit_code.GetPath()
+    def reset_view(self):
         try:
-            group_creator.export_group_as_csv(group_creator.get_iteration(), path)
+            self.group_grid.DeleteRows(0, self.group_grid.GetNumberRows())
+            self.iterations_choise.Set([])
         except:
-            wx.MessageBox("An error occurred while exporting the CSV file.", "Error", wx.OK | wx.ICON_ERROR)
+            pass
 
     def on_iteration_view_change(self, event):
         group = group_creator.get_current_group(iteration=int(event.GetString()), replace_alias=False)
         self.rerender_groups(group)
 
-    def on_reset(self, _, generate_new = True):
-        group_creator.reset_groups()
-        group_creator.alias = {}
-        if self.notebook_modes.GetSelection() == 1 and self.members_header_csv.GetStringSelection():
-            group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection())
-        
-        if generate_new:
-            self.on_new_iteration(None)
-        
     def on_page_change(self, event):
+        self.reset_state(None, generate_new=False)
         match event.GetSelection():
             case 0:
-                self.on_group_composition_value_change("member", int(self.combo_members.GetValue()))
-                self.on_group_composition_value_change("group", int(self.combo_groups_num.GetValue()))
+                self.InpNum.on_activation()
             case 1:
-                group_creator.n_students = None
-                self.on_group_composition_value_change("group", int(self.combo_groups_csv.GetValue()))
+                self.InpCsv.on_activation()
             case  _:
                 print("Invalid page. This should not happen")
-        self.on_reset(None, generate_new=False)
         self.reset_view()
         
-    
-    def on_group_composition_value_change(self, target: str, value = None):
-        try:
-            value = int(value)
-        except ValueError:
-            value = None
-        match target:
-            case "group":
-                group_creator.n_groups = value
-            case "member":
-                group_creator.n_students = value
-            case None:
-                pass
-        return
-
     def on_grid_interaction(self, event):
         # Get location of the cell
         row = event.GetRow()
@@ -137,9 +154,8 @@ class GuiHandler(layout.entrypoint):
                     event.StopPropagation()
                     return
                 for i in range(self.group_grid.GetNumberRows()):
-                    self.group_grid.SetCellBackgroundColour(i, 0, GuiHandler.background_color)
-                self.group_grid.SetCellBackgroundColour(row, 0, GuiHandler.highlighte_color)
-
+                    self.group_grid.SetCellBackgroundColour(i, 0, BACKGROUND_COLOR)
+                self.group_grid.SetCellBackgroundColour(row, 0, HIGHLIGHT_COLOR)
                 self.render_groupmembers(group_creator.get_current_group()[cell_value])
 
                 event.StopPropagation()
@@ -181,13 +197,6 @@ class GuiHandler(layout.entrypoint):
             self.group_grid.SetCellEditor(i, 2, wx.grid.GridCellTextEditor())
             self.group_grid.SetReadOnly(i, 2, False)
     
-    def reset_view(self):
-        try:
-            self.group_grid.DeleteRows(0, self.group_grid.GetNumberRows())
-            self.iterations_choise.Set([])
-        except:
-            pass
-
     def rerender_groups(self, groups):
         # Update table
         try:
@@ -206,7 +215,7 @@ class GuiHandler(layout.entrypoint):
         
         if "" not in groups:
             # this is the case when the alias editing is active
-            self.group_grid.SetCellBackgroundColour(0, 0, GuiHandler.highlighte_color)
+            self.group_grid.SetCellBackgroundColour(0, 0, HIGHLIGHT_COLOR)
         self.render_groupmembers(groups[list(groups.keys())[0]])
 
         self.Refresh()
@@ -258,9 +267,20 @@ class GuiHandler(layout.entrypoint):
         self.members_header_csv.Enable(ui_enabled)
         self.iterations_choise.Enable(ui_enabled)
 
-
+    def on_export_csv(self, event):
+        if not group_creator.get_current_group():
+            wx.MessageBox("No groups to export.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+        exit_code = wx.FileDialog(self, "Save CSV file", wildcard="CSV files (*.csv)|*.csv", defaultFile="GroupeExport.csv" ,style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+        if exit_code.ShowModal() == wx.ID_CANCEL:
+            return
+        path = exit_code.GetPath()
+        try:
+            group_creator.export_group_as_csv(group_creator.get_iteration(), path)
+        except:
+            wx.MessageBox("An error occurred while exporting the CSV file.", "Error", wx.OK | wx.ICON_ERROR)
 
 if __name__ == "__main__":
-    frame = GuiHandler(None)
+    frame = MainFrameHandler(None)
     frame.Show(True)
     app.MainLoop()
