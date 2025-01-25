@@ -3,7 +3,7 @@ from itertools import combinations
 from dataclasses import dataclass
 from utils import test_uniqueness
 import pandas as pd
-import re
+import time
 
 @dataclass
 class GroupCanidates:
@@ -77,56 +77,68 @@ class GroupCalculator:
         return max(self.groups.keys(), default=-1) 
 
     def create_groups(self):
+        start_time = time.time()
         if self.__n_students is None or self.__n_groups is None:
             raise ValueError("The number of students and groups must be set before creating groups")
         if self.__n_groups >= self.__n_students:
             raise InvalideGroupSize("The number of students must be greater than the number of groups")
         students_list: list[int] = list(range(self.__n_students))
 
-        random.shuffle(students_list)
 
         if self.__whitlist is None:
             self.__whitlist = {student: list(filter(lambda x: x != student, students_list)) for student in students_list}
         else:
             for student in self.__whitlist:
-                random.shuffle(self.__whitlist[student])
+                self.__whitlist[student]
 
-        # Compute canidates for the group
-        candidates: dict[int, list[GroupCanidates]] = {groupleader: [] for groupleader in students_list}
-        for leader in candidates:
-            group_combs = combinations(self.__whitlist[leader], self.__group_size - 1)
-            for group in group_combs:
-                # Maby add groupleader to group
-                colisions = 0
-                for member in group:
-                    colisions += sum(map(lambda x: member not in self.__whitlist[x], filter(lambda x: x != member, group)))
-                candidates[leader].append(GroupCanidates(group, colisions))
-            candidates[leader] = sorted(candidates[leader], key=lambda x: x.colisions)
-            
         
-        # Sort > Most matches first, least colisions first
-        candidates_iter = sorted(candidates.items(), key=lambda item: len(item[1]))
+
+        candidates: list[tuple[int]] = [] # ~ 0.02s faster the frozenset
+       
+        for comb in combinations(students_list, self.__group_size):
+            # [1,2,3,4]
+            invaalidations = []
+            invalidation_occurence_map = {}
+            for subset in combinations(comb, 2):
+                # [1,2]
+                if not subset[0] in self.__whitlist[subset[1]] : # and subset[1] in self.__whitlist[subset[0]] not neede
+                    invaalidations.append(subset)
+                    invalidation_occurence_map[subset[0]] = invalidation_occurence_map.get(subset[0], 0) + 1
+                    invalidation_occurence_map[subset[1]] = invalidation_occurence_map.get(subset[1], 0) + 1
+            
+            invaalidations = sorted(invaalidations, key=lambda x: max(invalidation_occurence_map.get(x[0], 0), invalidation_occurence_map.get(x[1], 0)), reverse=True)
+            while len(invaalidations) > 0:
+                # selecting which member to remove
+                problemaatic_pair = sorted(invaalidations.pop(0), key=lambda x: invalidation_occurence_map.get(x, 0), reverse=True)
+                comb = list(filter(lambda x: x != problemaatic_pair[0], comb))
+                invaalidations = list(filter(lambda x: x[0] not in problemaatic_pair or x[1] not in problemaatic_pair, invaalidations))
+            
+            candidates.append(comb)
+        
+        
+        # Sort > Most matches first
+        candidates = sorted(candidates, key=lambda item: len(item), reverse=True)
 
         # Try Grouplayout
         n_groups = 0
         group_layout: dict[str, list[int]] = {key: [] for key in map(GroupCalculator.get_group_letter, range(self.__n_groups))}
-        for leader, candidates in candidates_iter:
-            if leader not in students_list:
+        for canidate in candidates:
+            if any(map(lambda x: x not in students_list, canidate)): 
                 continue
-            for candidate in candidates:
-                if False in map(lambda x: x in students_list, candidate.members) \
-                    or leader not in students_list:
-                    continue
-                
-                group_name = GroupCalculator.get_group_letter(n_groups)
-                group_layout[group_name] = [leader] + list(candidate.members)
+           
+            
+            group_name = GroupCalculator.get_group_letter(n_groups)
+            group_layout[group_name] = list(canidate)
 
-                for member in group_layout[group_name]:
-                    self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group_name], self.__whitlist[member]))
-                    students_list.remove(member)
-                
-                n_groups += 1
+            for member in group_layout[group_name]:
+                self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group_name], self.__whitlist[member]))
+                students_list.remove(member)
+            
+            n_groups += 1
+            if n_groups == self.__n_groups:
                 break
+        
+        # chaange IF: Du keinen kollision hast, der andere eine neue gruppe ohne kollision findet 
 
         # Add left over students to groups
         for student in students_list:
@@ -155,10 +167,11 @@ class GroupCalculator:
         group = self.groups[max(self.groups.keys()) if iteration is None else iteration]
         return self.__replace_with_alias(group) if replace_alias else group
     
-    def get_all_groups(self):
+    def get_all_groups(self, replace_alias: bool = True):
         ret_groups = self.groups.copy()
-        for iteration, groups in ret_groups:
-            ret_groups[iteration] = self.__replace_with_alias(groups)
+        if replace_alias:
+            for iteration in ret_groups:
+                ret_groups[iteration] = self.__replace_with_alias(iteration)
         return ret_groups
 
     def export_group_as_csv(self, iteration: int, path: str):
@@ -178,7 +191,7 @@ class GroupCalculator:
         for iteration, groups in self.groups.items():
             print(f"Iteration {iteration}")
             for group, members in groups.items():
-                print(f"Group {group}: {map(lambda x: self.alias.get(x, x), members)}")
+                print(f"Group {group}: {list(map(lambda x: self.alias.get(x, x), members))}")
             print("\n")
 
     def read_csv_columns(self, path: str):
@@ -213,9 +226,11 @@ class GroupCalculator:
         return counter
 
 if __name__ == "__main__":
-    calc = GroupCalculator(9, 3)
-    for i in range(0, 3):
+    calc = GroupCalculator(24, 4)
+    for i in range(0, 2):
         calc.create_groups()
     calc.visualize_groups()
-    print(calc.can_repeat())
+    result = test_uniqueness(calc.get_all_groups(replace_alias=False))
+    print(f"Min: {result[0]}, Max: {result[1]}, Avg: {result[2]}")
+
 
