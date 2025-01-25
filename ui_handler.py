@@ -57,6 +57,10 @@ class NumInpHandler(num_input.NumInput, InpUtilsMixin):
         self.combo_groups.SetValue(str(GROUPS_INITIAL_VALUE))
         self.combo_members.SetValue(str(MEMBERS_INITIAL_VALUE))
 
+    def Enable(self, enable=True):
+        self.combo_groups.Enable(enable)
+        self.combo_members.Enable(enable)
+
     def on_activation(self):
         self.on_group_composition_value_change("member", int(self.combo_members.GetValue()))
         self.on_group_composition_value_change("group", int(self.combo_groups.GetValue()))
@@ -78,6 +82,11 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
         if self.members_header_csv.GetStringSelection():
             group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection())
     
+    def Enable(self, enable=True):
+        self.combo_groups.Enable(enable)
+        self.csv_filepicker.Enable(enable)
+        self.members_header_csv.Enable(enable)
+
     def on_csv_fileselect(self, event):
         headers = group_creator.read_csv_columns(event.GetPath())
         self.members_header_csv.Set(headers)
@@ -85,6 +94,123 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
         # Must trigger mannually, because the event is not triggered by the SetSelection method
         group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection()) 
 
+
+class InteractiveGrid(wx.grid.Grid):
+    def __init__(self, parent, id = None, pos = None, size = None, style = None):
+        super().__init__(parent, id, pos, size, style)
+        # Grid general
+        self.CreateGrid( 0, 3 )
+        self.EnableGridLines( True )
+        self.EnableDragGridSize( False )
+        self.SetMargins( 0, 0 )
+
+        self.EnableEditing(True)
+        self.SetSelectionMode(wx.grid.Grid.GridSelectNone)
+        self.SetCellHighlightPenWidth(0)
+        self.SetCellHighlightROPenWidth(0)
+
+        # Columns
+        self.SetColSize( 0, 160 )
+        self.SetColSize( 1, 160 )
+        self.SetColSize( 2, 300 )
+        self.EnableDragColMove( False )
+        self.EnableDragColSize( True )
+        self.SetColLabelValue( 0, u"Gruppen")
+        self.SetColLabelValue( 1, u"Mitglieder")
+        self.SetColLabelValue( 2, u"Alias")
+        self.SetColLabelSize( 40 )
+        self.SetColLabelAlignment( wx.ALIGN_CENTER, wx.ALIGN_CENTER )
+
+        # Rows
+        self.EnableDragRowSize( False )
+        self.SetRowLabelSize( 1 )
+        self.SetRowLabelAlignment( wx.ALIGN_LEFT, wx.ALIGN_BOTTOM )
+
+        # Cell Defaults
+        self.SetDefaultCellAlignment( wx.ALIGN_CENTER, wx.ALIGN_TOP )
+
+        # Interactivity
+        self.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_grid_interaction)
+        self.Bind(wx.grid.EVT_GRID_LABEL_LEFT_CLICK, lambda e: e.StopPropagation())
+        self.Bind(wx.grid.EVT_GRID_CELL_LEFT_DCLICK, lambda e: e.StopPropagation())
+        self.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_grid_value_change)
+
+    
+    def on_grid_interaction(self, event):
+        # Get location of the cell
+        row = event.GetRow()
+        match event.GetCol():
+            case 0:
+                cell_value = self.GetCellValue(row, 0)
+                if not cell_value:
+                    event.StopPropagation()
+                    return
+                for i in range(self.GetNumberRows()):
+                    self.SetCellBackgroundColour(i, 0, BACKGROUND_COLOR)
+                self.SetCellBackgroundColour(row, 0, HIGHLIGHT_COLOR)
+                self.render_groupmembers(group_creator.get_current_group()[cell_value])
+
+                event.StopPropagation()
+                self.Refresh()
+                return
+            case 2:
+                self.SetGridCursor(row, 2)
+                try:
+                    self.EnableCellEditControl(True)
+                    event.StopPropagation()
+                    return
+                except wx._core.wxAssertionError:
+                    pass
+            case _:
+                pass
+        event.Skip()
+        return
+    
+    def on_grid_value_change(self, event):
+        row = event.GetRow()
+        col = event.GetCol()
+        member = self.GetCellValue(row, 1)
+        if col == 2 and member:
+            group_creator.alias[int(member)] = self.GetCellValue(row, 2)
+        event.Skip()
+        return
+    
+    def render_groupmembers(self, group):
+        counter = 0
+        while True:
+            cell_value = self.GetCellValue(counter, 1)
+            if not cell_value:
+                break
+            self.SetCellValue(counter, 1, "")
+            counter += 1
+        for i, member in enumerate(group):
+            self.SetCellValue(i, 1, str(member))
+            self.SetCellValue(i, 2, str(group_creator.alias.get(member, "")))
+            self.SetCellEditor(i, 2, wx.grid.GridCellTextEditor())
+            self.SetReadOnly(i, 2, False)
+
+    def rerender_groups(self, groups):
+        # Update table
+        try:
+            self.DeleteRows(0, self.GetNumberRows())
+        except wx._core.wxAssertionError:
+            pass
+        n_rows = max([group_creator.n_students, len(groups)])
+        self.AppendRows(n_rows)
+        for i in range(n_rows):
+            self.SetReadOnly(i, 0, True)
+            self.SetReadOnly(i, 1, True)
+            self.SetReadOnly(i, 2, True)
+        # First, set the groups
+        for i, group in enumerate(groups):
+            self.SetCellValue(i, 0, group)
+        
+        if "" not in groups:
+            # this is the case when the alias editing is active
+            self.SetCellBackgroundColour(0, 0, HIGHLIGHT_COLOR)
+        self.render_groupmembers(groups[list(groups.keys())[0]])
+
+        self.Refresh()
 
 
 class MainFrameHandler(main_frame.MainFrame):
@@ -105,14 +231,8 @@ class MainFrameHandler(main_frame.MainFrame):
 
         self.iterations_choise.Bind(wx.EVT_CHOICE, self.on_iteration_view_change)
         
-        self.group_grid.EnableEditing(True)
-        self.group_grid.SetSelectionMode(wx.grid.Grid.GridSelectNone)
-        self.group_grid.SetCellHighlightPenWidth(0)
-        self.group_grid.SetCellHighlightROPenWidth(0)
-        self.group_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_grid_interaction)
-        self.group_grid.Bind(wx.grid.EVT_GRID_LABEL_LEFT_CLICK, lambda e: e.StopPropagation())
-        self.group_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_DCLICK, lambda e: e.StopPropagation())
-        self.group_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.on_grid_value_change)
+        self.group_grid = InteractiveGrid(self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, 0)
+        self.grid_container.Add( self.group_grid, 1, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL, 5 )
 
         self.on_new_iteration(None)
 
@@ -131,7 +251,7 @@ class MainFrameHandler(main_frame.MainFrame):
 
     def on_iteration_view_change(self, event):
         group = group_creator.get_current_group(iteration=int(event.GetString()), replace_alias=False)
-        self.rerender_groups(group)
+        self.group_grid.rerender_groups(group)
 
     def on_page_change(self, event):
         self.reset_state(None, generate_new=False)
@@ -144,81 +264,6 @@ class MainFrameHandler(main_frame.MainFrame):
                 print("Invalid page. This should not happen")
         self.reset_view()
         
-    def on_grid_interaction(self, event):
-        # Get location of the cell
-        row = event.GetRow()
-        match event.GetCol():
-            case 0:
-                cell_value = self.group_grid.GetCellValue(row, 0)
-                if not cell_value:
-                    event.StopPropagation()
-                    return
-                for i in range(self.group_grid.GetNumberRows()):
-                    self.group_grid.SetCellBackgroundColour(i, 0, BACKGROUND_COLOR)
-                self.group_grid.SetCellBackgroundColour(row, 0, HIGHLIGHT_COLOR)
-                self.render_groupmembers(group_creator.get_current_group()[cell_value])
-
-                event.StopPropagation()
-                self.Refresh()
-                return
-            case 2:
-                self.group_grid.SetGridCursor(row, 2)
-                try:
-                    self.group_grid.EnableCellEditControl(True)
-                    event.StopPropagation()
-                    return
-                except wx._core.wxAssertionError:
-                    pass
-            case _:
-                pass
-        event.Skip()
-        return
-    
-    def on_grid_value_change(self, event):
-        row = event.GetRow()
-        col = event.GetCol()
-        member = self.group_grid.GetCellValue(row, 1)
-        if col == 2 and member:
-            group_creator.alias[int(member)] = self.group_grid.GetCellValue(row, 2)
-        event.Skip()
-        return
-
-    def render_groupmembers(self, group):
-        counter = 0
-        while True:
-            cell_value = self.group_grid.GetCellValue(counter, 1)
-            if not cell_value:
-                break
-            self.group_grid.SetCellValue(counter, 1, "")
-            counter += 1
-        for i, member in enumerate(group):
-            self.group_grid.SetCellValue(i, 1, str(member))
-            self.group_grid.SetCellValue(i, 2, str(group_creator.alias.get(member, "")))
-            self.group_grid.SetCellEditor(i, 2, wx.grid.GridCellTextEditor())
-            self.group_grid.SetReadOnly(i, 2, False)
-    
-    def rerender_groups(self, groups):
-        # Update table
-        try:
-            self.group_grid.DeleteRows(0, self.group_grid.GetNumberRows())
-        except wx._core.wxAssertionError:
-            pass
-        n_rows = max([group_creator.n_students, len(groups)])
-        self.group_grid.AppendRows(n_rows)
-        for i in range(n_rows):
-            self.group_grid.SetReadOnly(i, 0, True)
-            self.group_grid.SetReadOnly(i, 1, True)
-            self.group_grid.SetReadOnly(i, 2, True)
-        # First, set the groups
-        for i, group in enumerate(groups):
-            self.group_grid.SetCellValue(i, 0, group)
-        
-        if "" not in groups:
-            # this is the case when the alias editing is active
-            self.group_grid.SetCellBackgroundColour(0, 0, HIGHLIGHT_COLOR)
-        self.render_groupmembers(groups[list(groups.keys())[0]])
-
-        self.Refresh()
 
     def on_new_iteration(self, _):
         try:
@@ -235,11 +280,12 @@ class MainFrameHandler(main_frame.MainFrame):
         new_group = group_creator.get_current_group()
         self.iterations_choise.Set(list(map(lambda x: str(x), range(group_creator.get_iteration()+1))))
         self.iterations_choise.SetSelection(group_creator.get_iteration())
-        self.rerender_groups(new_group)
+        self.group_grid.rerender_groups(new_group)
         
     def on_edit_aliases(self, _):
         if self.iterations_choise.GetSelection() == wx.NOT_FOUND:
             wx.MessageBox("Keine zu bearbeitenden Gruppen vorhanden.", "Error", wx.OK | wx.ICON_ERROR)
+            return
         ui_enabled = True
         if self.edit_aliases_btn.GetLabel() == "Alias bearbeiten":
             self.edit_aliases_btn.SetLabel("Fertig")
@@ -249,22 +295,17 @@ class MainFrameHandler(main_frame.MainFrame):
                 for member in curent_group[group]:
                     acumulated_members.append(member)
             acumulated_members  = list(sorted(acumulated_members))
-            self.rerender_groups({"": acumulated_members})
+            self.group_grid.rerender_groups({"": acumulated_members})
             ui_enabled = False
         else:
             self.edit_aliases_btn.SetLabel("Alias bearbeiten")
-            self.rerender_groups(group_creator.get_current_group(self.iterations_choise.GetSelection()))
-        self.combo_groups_num.Enable(ui_enabled)
-        self.combo_groups_csv.Enable(ui_enabled)
-        self.combo_members.Enable(ui_enabled)
+            self.group_grid.rerender_groups(group_creator.get_current_group(self.iterations_choise.GetSelection()))
+        self.InpNum.Enable(ui_enabled)
+        self.InpCsv.Enable(ui_enabled)
         self.notebook_modes.Enable(ui_enabled)
         self.new_iteration_btn.Enable(ui_enabled)
         self.reset_btn.Enable(ui_enabled)
         self.export_csv_btn.Enable(ui_enabled)
-        self.combo_groups_csv.Enable(ui_enabled)
-        self.combo_members.Enable(ui_enabled)
-        self.csv_filepicker.Enable(ui_enabled)
-        self.members_header_csv.Enable(ui_enabled)
         self.iterations_choise.Enable(ui_enabled)
 
     def on_export_csv(self, event):
