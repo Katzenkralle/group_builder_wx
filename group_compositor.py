@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from utils import test_uniqueness
 import pandas as pd
 import time
+from copy import deepcopy
 
 @dataclass
 class GroupCanidates:
@@ -82,8 +83,9 @@ class GroupCalculator:
             raise ValueError("The number of students and groups must be set before creating groups")
         if self.__n_groups >= self.__n_students:
             raise InvalideGroupSize("The number of students must be greater than the number of groups")
+        
         students_list: list[int] = list(range(self.__n_students))
-
+        random.shuffle(students_list)
 
         if self.__whitlist is None:
             self.__whitlist = {student: list(filter(lambda x: x != student, students_list)) for student in students_list}
@@ -91,70 +93,98 @@ class GroupCalculator:
             for student in self.__whitlist:
                 self.__whitlist[student]
 
-        
+        # Assemble the groups
+        g_rest = self.__n_students % self.__n_groups
+        group_layout: dict[str, list[int]] = {key: [-1 for _ in range(self.__group_size)] for key in map(GroupCalculator.get_group_letter, range(self.__n_groups))}
+        for i in range(0, g_rest):
+            group_layout[GroupCalculator.get_group_letter(i)].append(-1)
 
-        candidates: list[tuple[int]] = [] # ~ 0.02s faster the frozenset
-       
-        for comb in combinations(students_list, self.__group_size):
-            # [1,2,3,4]
-            invaalidations = []
-            invalidation_occurence_map = {}
-            for subset in combinations(comb, 2):
-                # [1,2]
-                if not subset[0] in self.__whitlist[subset[1]] : # and subset[1] in self.__whitlist[subset[0]] not neede
-                    invaalidations.append(subset)
-                    invalidation_occurence_map[subset[0]] = invalidation_occurence_map.get(subset[0], 0) + 1
-                    invalidation_occurence_map[subset[1]] = invalidation_occurence_map.get(subset[1], 0) + 1
+        MAX_AGE_CR = 20
+        virtual_members = {key: [] for key in group_layout} # Alternaativly pass blocked groups around (might be faster)
+        # Note the CR will never match none whitlist pairs
+        def change_request(destination: str, whitelist_requirement: int, req_age: int, future_layout: dict[str, list[int]]) -> None | dict[str, list[int]]:
+            blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
+            if len(blocking_members) == self.__group_size or (len(blocking_members) > 0 and req_age == MAX_AGE_CR):
+                return None
+          
+            if list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), virtual_members.get(destination, []))) != []:
+                # The group is already demanded by a member that is jet to be added
+                return None
             
-            invaalidations = sorted(invaalidations, key=lambda x: max(invalidation_occurence_map.get(x[0], 0), invalidation_occurence_map.get(x[1], 0)), reverse=True)
-            while len(invaalidations) > 0:
-                # selecting which member to remove
-                problemaatic_pair = sorted(invaalidations.pop(0), key=lambda x: invalidation_occurence_map.get(x, 0), reverse=True)
-                comb = list(filter(lambda x: x != problemaatic_pair[0], comb))
-                invaalidations = list(filter(lambda x: x[0] not in problemaatic_pair or x[1] not in problemaatic_pair, invaalidations))
-            
-            candidates.append(comb)
-        
-        
-        # Sort > Most matches first
-        candidates = sorted(candidates, key=lambda item: len(item), reverse=True)
+            if -1 not in future_layout[destination] and blocking_members == []:
+                to_append = list(filter(lambda x: x != -2, future_layout[destination]))
+                if len(to_append) == 0:
+                    #print(f"To many blocking members while trying to fit {whitelist_requirement} in {destination}")
+                    return None
+                blocking_members.append(to_append[0])
 
-        # Try Grouplayout
-        n_groups = 0
-        group_layout: dict[str, list[int]] = {key: [] for key in map(GroupCalculator.get_group_letter, range(self.__n_groups))}
-        for canidate in candidates:
-            if any(map(lambda x: x not in students_list, canidate)): 
-                continue
-           
-            
-            group_name = GroupCalculator.get_group_letter(n_groups)
-            group_layout[group_name] = list(canidate)
+            for blocker in blocking_members:
+                if blocker not in future_layout[destination]:
+                    #print(f"Blocker {blocker} not anymore in group {destination}, skipping")
+                    continue
+                change_at_index = future_layout[destination].index(blocker)
+                future_layout[destination][change_at_index] = -2 # Mark as blocked/imovable
 
-            for member in group_layout[group_name]:
-                self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group_name], self.__whitlist[member]))
-                students_list.remove(member)
-            
-            n_groups += 1
-            if n_groups == self.__n_groups:
-                break
-        
-        # chaange IF: Du keinen kollision hast, der andere eine neue gruppe ohne kollision findet 
+                virtual_members[destination].append(blocker)
+                cr_success = False
+                for group in filter(lambda x: x != destination, future_layout):
+                    response = change_request(group, whitelist_requirement=blocker, req_age=req_age+1, future_layout=deepcopy(future_layout))
+                    if response is not None:
+                        future_layout = response
+                        cr_success = True
+                        break
+                virtual_members[destination].remove(blocker)
+                if not cr_success:
+                    #print(f"Could not find a solution for blocker {blocker} while trying to fit {whitelist_requirement} in {destination}")
+                    return None
+                future_layout[destination][change_at_index] = -1
 
-        # Add left over students to groups
+                
+            future_layout[destination][future_layout[destination].index(-1)] = whitelist_requirement
+            #print(f"Added {whitelist_requirement} to {destination}")
+            return future_layout
+            
+        # Add the members to the groups
+        added_members = []
         for student in students_list:
+            # 1: Try fitting directly
+            # 2: Try fitting with CR
+            # 3: Fill up rest with prioritys
+            for group in group_layout:
+                if -1 not in group_layout[group]:
+                    continue
+                if list(filter(lambda x: student not in self.__whitlist.get(x, students_list), group_layout[group])) == []:
+                    group_layout[group][group_layout[group].index(-1)] = student
+                    added_members.append(student)
+                    break
+            else:
+                for group in group_layout:
+                    res = change_request(group, whitelist_requirement=student, req_age=10, future_layout=deepcopy(group_layout))
+                    if res is not None:
+                        group_layout = res
+                        added_members.append(student)
+                        break
+            
+        # Add left over members to groups
+        for student in filter(lambda x: x not in added_members, students_list):
+            print(f"Adding leftover member {student}")
             # group[1] is the group members, group[0] is name of the group
             prefered_group_key = []
-            for name, constelation in group_layout.items():
-                colisions = sum(map(lambda x: x not in self.__whitlist[student], constelation))
-                if len(constelation) >= self.__group_size:
+            for name in group_layout:
+                group_layout[name] = list(filter(lambda x: x != -1, group_layout[name]))
+
+                colisions = sum(map(lambda x: x not in self.__whitlist[student], group_layout[name]))
+                if len(group_layout[name]) >= self.__group_size:
                     colisions += 10
                 prefered_group_key.append((name, colisions))
 
             prefered_group = group_layout[sorted(prefered_group_key, key=lambda x: x[1])[0][0]]
             prefered_group.append(student)
-            for member in prefered_group:
-                self.__whitlist[member] = list(filter(lambda x: x not in prefered_group, self.__whitlist[member]))
 
+        # Update the whitelist
+        for group in group_layout:
+            for member in group_layout[group]:
+                self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group], self.__whitlist[member]))
 
         # The whitlist was updated during the group creation
         self.groups[self.get_iteration()+1] = group_layout
@@ -226,8 +256,8 @@ class GroupCalculator:
         return counter
 
 if __name__ == "__main__":
-    calc = GroupCalculator(24, 4)
-    for i in range(0, 2):
+    calc = GroupCalculator(24,6)
+    for i in range(0, 6):
         calc.create_groups()
     calc.visualize_groups()
     result = test_uniqueness(calc.get_all_groups(replace_alias=False))
