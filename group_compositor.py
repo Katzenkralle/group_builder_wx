@@ -1,8 +1,9 @@
 import random
 from itertools import combinations
 from dataclasses import dataclass
-from utils import test_uniqueness
+from utils import test_uniqueness, detect_encoding
 import pandas as pd
+import csv
 import time
 from copy import deepcopy
 
@@ -11,6 +12,12 @@ class GroupCanidates:
     members: list[int]
     colisions: int
 
+@dataclass
+class CsvMeta:
+    dialect: csv.Dialect
+    header: bool
+    headers: list[str]
+    path: str
 
 class InvalideGroupSize(Exception):
     pass
@@ -28,7 +35,7 @@ class GroupCalculator:
         self.__try_calc_group_size()
 
         self.__whitlist: dict[int, set[int]] | None = None
-        self.__csv_path: str | None = None
+        self.__csv_meta = CsvMeta(None, False, [], None)
 
         self.groups: dict[int, dict[str, list[str]]] = {}
         self.alias = {}
@@ -225,23 +232,42 @@ class GroupCalculator:
             print("\n")
 
     def read_csv_columns(self, path: str):
-        self.__csv_path = path
-        df = pd.read_csv(path, nrows=0)
-        return list(df.columns)
+        #list(df.keys())
+        headers = []
+        with open(path, 'r') as csvfile:
+            first_bytes = csvfile.read(1024)
+            sniffer = csv.Sniffer()
+            dialect = sniffer.sniff(first_bytes)
+            header = sniffer.has_header(first_bytes.replace(dialect.delimiter, ","))
+            csvfile.seek(0)
+            next_row = next(csv.reader(csvfile, dialect=dialect))
+            if header:
+                headers = next_row
+            else:
+                headers = [f"Column {i}" for i in range(0, len(next_row))]
+            self.__csv_meta = CsvMeta(dialect, header, headers, path)
+        return list(headers)
 
     def select_from_csv_file(self, header_name: str):
-        if self.__csv_path is None:
-            raise ValueError("No CSV file selected.")
-        df = pd.read_csv(self.__csv_path)
-        if header_name not in df.columns:
-            raise ValueError(f"Header '{header_name}' not found in CSV file.")
-        if "Member" not in df.columns:
-            row = df[header_name].tolist()
-        else:
-            # It most likly is a file that was exported from this program
-            [member, row] = [df["Member"].tolist(), df[header_name].tolist()]
-            row = list(map(lambda x: x[1], sorted(zip(member, row), key=lambda x: x[0])))
-        self.alias = {i: row[i] for i in range(0, len(row)) if pd.notnull(row[i])}
+        if self.__csv_meta.path is None:
+            raise ValueError("No CSV file selected.")   
+
+        with open(self.__csv_meta.path, 'r') as csvfile:
+            reader = csv.reader(csvfile, dialect=self.__csv_meta.dialect)
+            if self.__csv_meta.header:
+                next(reader)
+            header_index = self.__csv_meta.headers.index(header_name)
+
+            row = []
+            if "Member" in self.__csv_meta.headers:
+                # It most likly is a file that was exported from this program
+                member_index = self.__csv_meta.headers.index("Member")
+                member, row = zip(*[(row[member_index], row[header_index]) for row in reader])
+                row = list(map(lambda x: x[1], sorted(zip(member, row), key=lambda x: x[0])))
+            else:
+                row = [row[header_index] for row in reader]
+
+        self.alias = {i: row[i] for i in range(0, len(row))}
         self.n_students = len(row)
         return 
 

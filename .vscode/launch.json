@@ -12,6 +12,14 @@
             "python": "${workspaceFolder}/venv/bin/python",
             "program": "${file}",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: UI",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}/venv/bin/python",
+            "program": "${workspaceFolder}/ui_handler.py",
+            "console": "integratedTerminal"
         }
     ]
 }
