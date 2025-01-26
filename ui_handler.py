@@ -15,6 +15,16 @@ MEMBERS_INITIAL_VALUE = 12
 HIGHLIGHT_COLOR = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
 BACKGROUND_COLOR = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
 
+
+EVT_FORCE_RERENDER = wx.NewEventType()
+EVT_FORCE_RERENDER_BINDER = wx.PyEventBinder(EVT_FORCE_RERENDER)
+
+class ForceRerender(wx.PyCommandEvent):
+    def __init__(self, evtType, id):
+        wx.PyCommandEvent.__init__(self, evtType, id)
+
+
+
 class InpUtilsMixin:
     def on_group_composition_value_change(self, target: str, value = None):
         try:
@@ -30,7 +40,7 @@ class InpUtilsMixin:
                 pass
         return
     
-    def only_allow_number(event):
+    def only_allow_number(self, event):
         """
         Allows only numeric input for age and height fields.
 
@@ -47,15 +57,22 @@ class InpUtilsMixin:
 class NumInpHandler(num_input.NumInput, InpUtilsMixin):
     def __init__(self, parent):
         super().__init__(parent)
-        self.combo_groups.Set([str(i) for i in range(2, 11)])
-        self.combo_members.Set([str(i) for i in range(10, 101)])
-
-        self.combo_groups.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("group", e.GetString()))
-        self.combo_members.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("member", e.GetString()))
-        self.combo_groups.Bind(wx.EVT_CHAR, self.only_allow_number)
+        self.combo_members.Set([str(i) for i in range(4, 30)])
+        self.combo_members.Bind(wx.EVT_TEXT, self.on_change_members)
+        #self.combo_members.Bind(wx.EVT_TEXT, lambda e: self.combo_groups.Set([str(i) for i in range(2, int(e.GetString())//2)]))
         self.combo_members.Bind(wx.EVT_CHAR, self.only_allow_number)
-        self.combo_groups.SetValue(str(GROUPS_INITIAL_VALUE))
         self.combo_members.SetValue(str(MEMBERS_INITIAL_VALUE))
+
+        
+        self.combo_groups.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("group", e.GetString()))
+        self.combo_groups.Bind(wx.EVT_CHAR, self.only_allow_number)
+        self.combo_groups.SetValue(str(GROUPS_INITIAL_VALUE))
+
+
+    def on_change_members(self, event):
+        self.on_group_composition_value_change("member", event.GetString())
+        self.combo_groups.Set([str(i) for i in range(2, group_creator.n_students//2)])
+        self.combo_groups.SetValue(str(group_creator.n_students//4))
 
     def Enable(self, enable=True):
         self.combo_groups.Enable(enable)
@@ -74,25 +91,40 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
         self.combo_groups.SetValue(str(GROUPS_INITIAL_VALUE))
 
         self.csv_filepicker.Bind(wx.EVT_FILEPICKER_CHANGED, self.on_csv_fileselect)
-        self.members_header_csv.Bind(wx.EVT_CHOICE, lambda e: group_creator.select_from_csv_file(e.GetString()))
+        self.members_header_csv.Bind(wx.EVT_CHOICE, self.on_header_selection_change)
+        self.members_header_csv_sub.Bind(wx.EVT_CHOICE, self.on_header_selection_change)
     
     def on_activation(self):
         group_creator.n_students = None
         self.on_group_composition_value_change("group", int(self.combo_groups.GetValue()))
-        if self.members_header_csv.GetStringSelection():
-            group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection())
+        try:
+            self.on_header_selection_change(None, trigger_rerender=False)
+        except ValueError:
+            pass
     
     def Enable(self, enable=True):
         self.combo_groups.Enable(enable)
         self.csv_filepicker.Enable(enable)
         self.members_header_csv.Enable(enable)
+        self.members_header_csv_sub.Enable(enable)
+
+    def on_header_selection_change(self, _, trigger_rerender = True):
+        group_creator.select_from_csv_file([self.members_header_csv.GetStringSelection(), self.members_header_csv_sub.GetStringSelection()])
+        if trigger_rerender:
+            wx.PostEvent(self.GetParent(), ForceRerender(EVT_FORCE_RERENDER, self.GetId()))
 
     def on_csv_fileselect(self, event):
         headers = group_creator.read_csv_columns(event.GetPath())
         self.members_header_csv.Set(headers)
         self.members_header_csv.SetSelection(0)
+        self.members_header_csv_sub.Set([""] + headers)
+        self.members_header_csv_sub.SetSelection(0)
         # Must trigger mannually, because the event is not triggered by the SetSelection method
-        group_creator.select_from_csv_file(self.members_header_csv.GetStringSelection()) 
+        self.on_header_selection_change(None, trigger_rerender=False)
+        self.combo_groups.Set([str(i) for i in range(2, group_creator.n_students//2)])
+        self.combo_groups.Set([str(i) for i in range(2, group_creator.n_students//2)])
+        self.combo_groups.SetValue(str(group_creator.n_students//4))
+        wx.PostEvent(self.GetParent(), ForceRerender(EVT_FORCE_RERENDER, self.GetId()))
 
 
 class InteractiveGrid(wx.grid.Grid):
@@ -234,11 +266,19 @@ class MainFrameHandler(main_frame.MainFrame):
         self.group_grid = InteractiveGrid(self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, 0)
         self.grid_container.Add( self.group_grid, 1, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL, 5 )
 
+        self.notebook_modes.Bind(EVT_FORCE_RERENDER_BINDER, self.rerender_or_create)
+
         self.on_new_iteration(None)
 
     def reset_state(self, _, generate_new = True):
         group_creator.reset_groups()
         group_creator.alias = {}
+        if self.notebook_modes.GetSelection() == 1:
+            try:
+                group_creator.select_from_csv_file([self.InpCsv.members_header_csv.GetStringSelection(),
+                                                     self.InpCsv.members_header_csv_sub.GetStringSelection()])
+            except ValueError:
+                pass
         if generate_new:
             self.on_new_iteration(None)
 
@@ -248,6 +288,13 @@ class MainFrameHandler(main_frame.MainFrame):
             self.iterations_choise.Set([])
         except:
             pass
+
+    def rerender_or_create(self, _):
+        iter_choise = self.iterations_choise.GetSelection()
+        if iter_choise != wx.NOT_FOUND:
+            self.group_grid.rerender_groups(group_creator.get_current_group(iter_choise))
+        else:
+            self.on_new_iteration(None)
 
     def on_iteration_view_change(self, event):
         group = group_creator.get_current_group(iteration=int(event.GetString()), replace_alias=False)
@@ -262,8 +309,11 @@ class MainFrameHandler(main_frame.MainFrame):
                 self.InpCsv.on_activation()
             case  _:
                 print("Invalid page. This should not happen")
-        self.reset_view()
-        
+        #self.reset_view()
+        if group_creator.n_groups and group_creator.n_students:
+            self.on_new_iteration(None)
+        else:
+            self.reset_view()
 
     def on_new_iteration(self, _):
         try:

@@ -234,6 +234,7 @@ class GroupCalculator:
     def read_csv_columns(self, path: str):
         #list(df.keys())
         headers = []
+        self.reset_groups()
         with open(path, 'r') as csvfile:
             first_bytes = csvfile.read(1024)
             sniffer = csv.Sniffer()
@@ -248,27 +249,30 @@ class GroupCalculator:
             self.__csv_meta = CsvMeta(dialect, header, headers, path)
         return list(headers)
 
-    def select_from_csv_file(self, header_name: str):
+    def select_from_csv_file(self, header_name: list[str]):
+        header_name = list(filter(lambda x: x != "", header_name))
         if self.__csv_meta.path is None:
             raise ValueError("No CSV file selected.")   
+        if any(map(lambda x: x not in self.__csv_meta.headers, header_name)):
+            raise ValueError("The header name is not in the CSV file.")
 
         with open(self.__csv_meta.path, 'r') as csvfile:
             reader = csv.reader(csvfile, dialect=self.__csv_meta.dialect)
             if self.__csv_meta.header:
                 next(reader)
-            header_index = self.__csv_meta.headers.index(header_name)
+            header_index = list(map(lambda x: self.__csv_meta.headers.index(x), header_name))
 
             row = []
             if "Member" in self.__csv_meta.headers:
                 # It most likly is a file that was exported from this program
                 member_index = self.__csv_meta.headers.index("Member")
-                member, row = zip(*[(row[member_index], row[header_index]) for row in reader])
+                member, row = zip(*[(row[member_index], [row[i] for i in header_index]) for row in reader])
                 row = list(map(lambda x: x[1], sorted(zip(member, row), key=lambda x: x[0])))
             else:
-                row = [row[header_index] for row in reader]
-
-        self.alias = {i: row[i] for i in range(0, len(row))}
-        self.n_students = len(row)
+                row = [[row[i] for i in header_index] for row in reader]
+        row = list(map(lambda x: list(filter(lambda y: y != "", x)), row))
+        self.alias = {i: ", ".join(row[i]) for i in range(0, len(row))}
+        self.__n_students = len(row) # Else it would trigger an reset
         return 
 
     def can_repeat(self):
