@@ -215,11 +215,17 @@ class InteractiveGrid(wx.grid.Grid):
                 break
             self.SetCellValue(counter, 1, "")
             counter += 1
+        last_i = 0
         for i, member in enumerate(group):
             self.SetCellValue(i, 1, str(member))
             self.SetCellValue(i, 2, str(group_creator.alias.get(member, "")))
             self.SetCellEditor(i, 2, wx.grid.GridCellTextEditor())
             self.SetReadOnly(i, 2, False)
+            last_i = i
+        for i in range(last_i+1, self.GetNumberRows()):
+            self.SetCellValue(i, 1, "")
+            self.SetCellValue(i, 2, "")
+            self.SetReadOnly(i, 2, True)
 
     def rerender_groups(self, groups):
         # Update table
@@ -270,6 +276,12 @@ class MainFrameHandler(main_frame.MainFrame):
 
         self.on_new_iteration(None)
 
+    def check_pair_repetition_warning(self):
+        if int(self.iterations_choise.GetSelection()) >= group_creator.pair_repetition_brakepoinnt:
+            self.pair_repetition_warning.SetLabel("Achtung: Wiederholung von Paaren")
+        else:
+            self.pair_repetition_warning.SetLabel("")
+
     def reset_state(self, _, generate_new = True):
         group_creator.reset_groups()
         group_creator.alias = {}
@@ -298,6 +310,7 @@ class MainFrameHandler(main_frame.MainFrame):
 
     def on_iteration_view_change(self, event):
         group = group_creator.get_current_group(iteration=int(event.GetString()), replace_alias=False)
+        self.check_pair_repetition_warning()
         self.group_grid.rerender_groups(group)
 
     def on_page_change(self, event):
@@ -330,6 +343,7 @@ class MainFrameHandler(main_frame.MainFrame):
         new_group = group_creator.get_current_group()
         self.iterations_choise.Set(list(map(lambda x: str(x), range(group_creator.get_iteration()+1))))
         self.iterations_choise.SetSelection(group_creator.get_iteration())
+        self.check_pair_repetition_warning()
         self.group_grid.rerender_groups(new_group)
         
     def on_edit_aliases(self, _):

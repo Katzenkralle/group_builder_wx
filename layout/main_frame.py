@@ -30,12 +30,20 @@ class MainFrame ( wx.Frame ):
 
         bSizer2.Add( self.notebook_modes, 0, wx.ALL|wx.EXPAND, 5 )
 
-        gSizer4 = wx.GridSizer( 0, 2, 0, 0 )
+        gSizer4 = wx.GridSizer( 0, 3, 0, 0 )
 
         self.m_staticText8 = wx.StaticText( self, wx.ID_ANY, _(u"Zusammensetzungen:"), wx.DefaultPosition, wx.DefaultSize, 0 )
         self.m_staticText8.Wrap( -1 )
 
         gSizer4.Add( self.m_staticText8, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+        self.pair_repetition_warning = wx.StaticText( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+        self.pair_repetition_warning.Wrap( -1 )
+
+        self.pair_repetition_warning.SetFont( wx.Font( wx.NORMAL_FONT.GetPointSize(), wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False, wx.EmptyString ) )
+        self.pair_repetition_warning.SetForegroundColour( wx.SystemSettings.GetColour( wx.SYS_COLOUR_HIGHLIGHT ) )
+
+        gSizer4.Add( self.pair_repetition_warning, 0, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 5 )
 
         iterations_choiseChoices = [ wx.EmptyString ]
         self.iterations_choise = wx.Choice( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, iterations_choiseChoices, 0 )

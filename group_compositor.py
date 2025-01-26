@@ -6,6 +6,7 @@ import pandas as pd
 import csv
 import time
 from copy import deepcopy
+import sys
 
 @dataclass
 class GroupCanidates:
@@ -39,6 +40,7 @@ class GroupCalculator:
 
         self.groups: dict[int, dict[str, list[str]]] = {}
         self.alias = {}
+        self.__pair_repetition_brakepoinnt = sys.maxsize
 
     @staticmethod
     def get_group_letter(group: int) -> str:
@@ -56,6 +58,10 @@ class GroupCalculator:
     def __try_calc_group_size(self):
         if self.__n_students is not None and self.__n_groups is not None:
             self.__group_size = self.__n_students // self.__n_groups
+
+    @property
+    def pair_repetition_brakepoinnt(self):
+        return self.__pair_repetition_brakepoinnt
 
     @property
     def n_students(self):
@@ -92,6 +98,7 @@ class GroupCalculator:
             raise InvalideGroupSize("The number of students must be greater than the number of groups")
         
         students_list: list[int] = list(range(self.__n_students))
+        this_iteration = self.get_iteration()+1
         random.shuffle(students_list)
 
         if self.__whitlist is None:
@@ -181,20 +188,23 @@ class GroupCalculator:
                 group_layout[name] = list(filter(lambda x: x != -1, group_layout[name]))
 
                 colisions = sum(map(lambda x: x not in self.__whitlist[student], group_layout[name]))
-                if len(group_layout[name]) >= self.__group_size:
-                    colisions += 10
-                prefered_group_key.append((name, colisions))
-
-            prefered_group = group_layout[sorted(prefered_group_key, key=lambda x: x[1])[0][0]]
+                to_long_punishment = 10 if len(group_layout[name]) >= self.__group_size else 0
+                prefered_group_key.append((name, colisions, to_long_punishment))
+            prefered_group_key = sorted(prefered_group_key, key=lambda x: x[1] + x[2])[0]
+            if prefered_group_key[1] > 0 and self.__pair_repetition_brakepoinnt > this_iteration:
+                self.__pair_repetition_brakepoinnt = this_iteration
+            prefered_group = group_layout[prefered_group_key[0]]
             prefered_group.append(student)
 
         # Update the whitelist
         for group in group_layout:
             for member in group_layout[group]:
-                self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group], self.__whitlist[member]))
-
+                if member != -1:
+                    self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group], self.__whitlist[member]))
+                else:
+                    pass
         # The whitlist was updated during the group creation
-        self.groups[self.get_iteration()+1] = group_layout
+        self.groups[this_iteration] = group_layout
     
         return self.groups
     
@@ -223,6 +233,7 @@ class GroupCalculator:
     def reset_groups(self):
         self.groups = {}
         self.__whitlist = None
+        self.__pair_repetition_brakepoinnt = sys.maxsize
 
     def visualize_groups(self):
         for iteration, groups in self.groups.items():
