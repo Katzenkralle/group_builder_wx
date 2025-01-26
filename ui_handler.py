@@ -122,7 +122,6 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
         # Must trigger mannually, because the event is not triggered by the SetSelection method
         self.on_header_selection_change(None, trigger_rerender=False)
         self.combo_groups.Set([str(i) for i in range(2, group_creator.n_students//2)])
-        self.combo_groups.Set([str(i) for i in range(2, group_creator.n_students//2)])
         self.combo_groups.SetValue(str(group_creator.n_students//4))
         wx.PostEvent(self.GetParent(), ForceRerender(EVT_FORCE_RERENDER, self.GetId()))
 
@@ -303,7 +302,7 @@ class MainFrameHandler(main_frame.MainFrame):
 
     def rerender_or_create(self, _):
         iter_choise = self.iterations_choise.GetSelection()
-        if iter_choise != wx.NOT_FOUND:
+        if iter_choise != wx.NOT_FOUND and group_creator.get_current_group(iter_choise):
             self.group_grid.rerender_groups(group_creator.get_current_group(iter_choise))
         else:
             self.on_new_iteration(None)

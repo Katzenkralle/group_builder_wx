@@ -1,10 +1,11 @@
-def test_rec(a):
-    if a is not None:
-        a += 1
-    else:
-        print("a is None")
-    if a == 10:
-        a -= 100
-        return None
+from chardet.universaldetector import UniversalDetector
+def detect_encoding(file_path):
+    detector = UniversalDetector()
+    with UniversalDetector() as detector:
+        with open(file_path, 'rb') as file:
+            for line in file:
+                detector.feed(line)
+                if detector.done: break
+    return detector.result
 
-    
+detect_encoding('dqi_user2.csv')

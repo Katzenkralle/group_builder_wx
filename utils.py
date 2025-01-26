@@ -1,6 +1,6 @@
 from collections import defaultdict
 from itertools import combinations
-from bs4 import UnicodeDammit
+from chardet.universaldetector import UniversalDetector
 
 def test_uniqueness(data):
     pair_counts = defaultdict(int)
@@ -15,5 +15,10 @@ def test_uniqueness(data):
     return [min(pair_distribution.values()), max(pair_distribution.values()), sum(pair_distribution.values()) / len(pair_distribution)]
 
 def detect_encoding(file_path):
-    finder = UnicodeDammit(open(file_path, 'rb').read())
-    return finder.original_encoding
+    detector = UniversalDetector()
+    with open(file_path, 'rb') as file:
+        for line in file:
+            detector.feed(line)
+            if detector.done: break
+    detector.close()
+    return detector.result.get('encoding', "utf-8")

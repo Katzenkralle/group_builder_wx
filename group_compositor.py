@@ -19,6 +19,7 @@ class CsvMeta:
     header: bool
     headers: list[str]
     path: str
+    encoding: str
 
 class InvalideGroupSize(Exception):
     pass
@@ -36,7 +37,7 @@ class GroupCalculator:
         self.__try_calc_group_size()
 
         self.__whitlist: dict[int, set[int]] | None = None
-        self.__csv_meta = CsvMeta(None, False, [], None)
+        self.__csv_meta = CsvMeta(None, False, [], None, None)
 
         self.groups: dict[int, dict[str, list[str]]] = {}
         self.alias = {}
@@ -211,8 +212,11 @@ class GroupCalculator:
     def get_current_group(self, iteration: int = None, replace_alias: bool = True):
         if self.groups == {}:
             return {}
-        group = self.groups[max(self.groups.keys()) if iteration is None else iteration]
-        return self.__replace_with_alias(group) if replace_alias else group
+        try:       
+            group = self.groups[max(self.groups.keys()) if iteration is None else iteration]
+            return self.__replace_with_alias(group) if replace_alias else group
+        except KeyError:
+            return {}
     
     def get_all_groups(self, replace_alias: bool = True):
         ret_groups = self.groups.copy()
@@ -246,7 +250,8 @@ class GroupCalculator:
         #list(df.keys())
         headers = []
         self.reset_groups()
-        with open(path, 'r') as csvfile:
+        encoding = detect_encoding(path)
+        with open(path, 'r', encoding=encoding) as csvfile:
             first_bytes = csvfile.read(1024)
             sniffer = csv.Sniffer()
             dialect = sniffer.sniff(first_bytes)
@@ -257,7 +262,7 @@ class GroupCalculator:
                 headers = next_row
             else:
                 headers = [f"Column {i}" for i in range(0, len(next_row))]
-            self.__csv_meta = CsvMeta(dialect, header, headers, path)
+            self.__csv_meta = CsvMeta(dialect, header, headers, path, encoding)
         return list(headers)
 
     def select_from_csv_file(self, header_name: list[str]):
@@ -267,20 +272,21 @@ class GroupCalculator:
         if any(map(lambda x: x not in self.__csv_meta.headers, header_name)):
             raise ValueError("The header name is not in the CSV file.")
 
-        with open(self.__csv_meta.path, 'r') as csvfile:
+        with open(self.__csv_meta.path, 'tr', encoding=self.__csv_meta.encoding, errors="replace") as csvfile:
             reader = csv.reader(csvfile, dialect=self.__csv_meta.dialect)
             if self.__csv_meta.header:
                 next(reader)
             header_index = list(map(lambda x: self.__csv_meta.headers.index(x), header_name))
 
             row = []
+            row_assambler = lambda row: [row[i] if len(row) > i else "" for i in header_index]
             if "Member" in self.__csv_meta.headers:
                 # It most likly is a file that was exported from this program
                 member_index = self.__csv_meta.headers.index("Member")
-                member, row = zip(*[(row[member_index], [row[i] for i in header_index]) for row in reader])
+                member, row = zip(*[(row[member_index], row_assambler(row)) for row in reader])
                 row = list(map(lambda x: x[1], sorted(zip(member, row), key=lambda x: x[0])))
             else:
-                row = [[row[i] for i in header_index] for row in reader]
+                row = [row_assambler(row) for row in reader]
         row = list(map(lambda x: list(filter(lambda y: y != "", x)), row))
         self.alias = {i: ", ".join(row[i]) for i in range(0, len(row))}
         self.__n_students = len(row) # Else it would trigger an reset
