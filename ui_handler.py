@@ -1,13 +1,15 @@
 import wx.grid
-import layout.main_frame as main_frame
-import layout.csv_input as csv_input
-import layout.num_input as num_input
+from layout import main_frame, num_input, csv_input
 import wx
 from wx.lib.mixins.grid import GridAutoEditMixin
 import group_compositor
 
 group_creator = group_compositor.GroupCalculator()
-app = wx.App(False)
+
+if 'app' not in globals():
+    # Needet to allow imports from files other than main.py
+    app = wx.App(False)
+
 
 GROUPS_INITIAL_VALUE = 4
 MEMBERS_INITIAL_VALUE = 12
@@ -20,6 +22,16 @@ EVT_FORCE_RERENDER = wx.NewEventType()
 EVT_FORCE_RERENDER_BINDER = wx.PyEventBinder(EVT_FORCE_RERENDER)
 
 class ForceRerender(wx.PyCommandEvent):
+    """
+    Custom event to force the UI to rerender.
+    This event can be used to trigger a rerender of the UI components in a wxPython application.
+    
+    Args:
+        :param evtType: The type of the event.
+        :type evtType: int
+        :param id: The identifier of the event.
+        :type id: int    
+    """
     def __init__(self, evtType, id):
         wx.PyCommandEvent.__init__(self, evtType, id)
 
@@ -383,8 +395,3 @@ class MainFrameHandler(main_frame.MainFrame):
             group_creator.export_group_as_csv(group_creator.get_iteration(), path)
         except:
             wx.MessageBox("An error occurred while exporting the CSV file.", "Error", wx.OK | wx.ICON_ERROR)
-
-if __name__ == "__main__":
-    frame = MainFrameHandler(None)
-    frame.Show(True)
-    app.MainLoop()

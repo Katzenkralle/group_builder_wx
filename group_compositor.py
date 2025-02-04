@@ -2,7 +2,6 @@ import random
 from itertools import combinations
 from dataclasses import dataclass
 from utils import test_uniqueness, detect_encoding
-import pandas as pd
 import csv
 import time
 from copy import deepcopy

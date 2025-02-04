@@ -1,2 +1,5 @@
 venv
 *.csv
+build
+.pyc
+__pycache__
