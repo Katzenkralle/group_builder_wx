@@ -118,11 +118,11 @@ class GroupCalculator:
         # Note the CR will never match none whitlist pairs
         def change_request(destination: str, whitelist_requirement: int, req_age: int, future_layout: dict[str, list[int]]) -> None | dict[str, list[int]]:
             blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
-            if len(blocking_members) == self.__group_size or (len(blocking_members) > 0 and req_age == MAX_AGE_CR):
-                return None
+            #if len(blocking_members) == self.__group_size or (len(blocking_members) > 0 and req_age == MAX_AGE_CR):
+            #    return None
           
             if list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), virtual_members.get(destination, []))) != []:
-                # The group is already demanded by a member that is jet to be added
+                # The group is blocked by a member that is to be added to the group
                 return None
             
             if -1 not in future_layout[destination] and blocking_members == []:
@@ -130,6 +130,14 @@ class GroupCalculator:
                 if len(to_append) == 0:
                     #print(f"To many blocking members while trying to fit {whitelist_requirement} in {destination}")
                     return None
+                # Happens when destination is full and no collision is present
+                # We try to pass throu throu the element to the nexst groups cr, if possible
+                if req_age >= self.__n_groups-1:
+                    for group in filter(lambda x: -1 in future_layout[x], future_layout):
+                        response = change_request(group, whitelist_requirement=whitelist_requirement, req_age=req_age+1, future_layout=deepcopy(future_layout))
+                        if response is not None:
+                            return response
+                # else we try to add the element to the group, by moving things around
                 blocking_members.append(to_append[0])
 
             for blocker in blocking_members:
@@ -165,19 +173,11 @@ class GroupCalculator:
             # 2: Try fitting with CR
             # 3: Fill up rest with prioritys
             for group in group_layout:
-                if -1 not in group_layout[group]:
-                    continue
-                if list(filter(lambda x: student not in self.__whitlist.get(x, students_list), group_layout[group])) == []:
-                    group_layout[group][group_layout[group].index(-1)] = student
+                res = change_request(group, whitelist_requirement=student, req_age=0, future_layout=deepcopy(group_layout))
+                if res is not None:
+                    group_layout = res
                     added_members.append(student)
                     break
-            else:
-                for group in group_layout:
-                    res = change_request(group, whitelist_requirement=student, req_age=10, future_layout=deepcopy(group_layout))
-                    if res is not None:
-                        group_layout = res
-                        added_members.append(student)
-                        break
             
         # Add left over members to groups
         for student in filter(lambda x: x not in added_members, students_list):
@@ -199,10 +199,8 @@ class GroupCalculator:
         # Update the whitelist
         for group in group_layout:
             for member in group_layout[group]:
-                if member != -1:
-                    self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group], self.__whitlist[member]))
-                else:
-                    pass
+                self.__whitlist[member] = list(filter(lambda x: x not in group_layout[group], self.__whitlist[member]))
+             
         # The whitlist was updated during the group creation
         self.groups[this_iteration] = group_layout
     
@@ -230,8 +228,10 @@ class GroupCalculator:
         for group, members in groups.items():
             for member in members:
                 rows.append([group, member, self.alias.get(member, "")])
-        df = pd.DataFrame(rows, columns=["Group", "Member", "Alias"])
-        df.to_csv(path, index=False)
+        with open(path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["Group", "Member", "Alias"])
+            writer.writerows(rows)
 
     def reset_groups(self):
         self.groups = {}
@@ -265,6 +265,7 @@ class GroupCalculator:
         return list(headers)
 
     def select_from_csv_file(self, header_name: list[str]):
+        # ToDO: remove byte order mark if at start of file
         header_name = list(filter(lambda x: x != "", header_name))
         if self.__csv_meta.path is None:
             raise ValueError("No CSV file selected.")   

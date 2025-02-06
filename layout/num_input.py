@@ -26,7 +26,7 @@ class NumInput ( wx.Panel ):
 
         gSizer1 = wx.GridSizer( 0, 2, 0, 0 )
 
-        self.m_staticText7 = wx.StaticText( self, wx.ID_ANY, _(u"Wähle die Gruppenkonstilation aus:"), wx.DefaultPosition, wx.DefaultSize, 0 )
+        self.m_staticText7 = wx.StaticText( self, wx.ID_ANY, _(u"Wähle die Gruppenkonstellation aus:"), wx.DefaultPosition, wx.DefaultSize, 0 )
         self.m_staticText7.Wrap( -1 )
 
         gSizer1.Add( self.m_staticText7, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
@@ -36,23 +36,23 @@ class NumInput ( wx.Panel ):
 
         gSizer1.Add( self.m_staticText81, 0, wx.ALL, 5 )
 
-        self.m_staticText2 = wx.StaticText( self, wx.ID_ANY, _(u"Zu verteilende Mitglieder:"), wx.DefaultPosition, wx.DefaultSize, 0 )
-        self.m_staticText2.Wrap( -1 )
-
-        gSizer1.Add( self.m_staticText2, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
-
-        combo_membersChoices = []
-        self.combo_members = wx.ComboBox( self, wx.ID_ANY, _(u"10"), wx.DefaultPosition, wx.DefaultSize, combo_membersChoices, 0 )
-        gSizer1.Add( self.combo_members, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT, 5 )
-
         self.m_staticText1 = wx.StaticText( self, wx.ID_ANY, _(u"Anzahl Gruppen:"), wx.DefaultPosition, wx.DefaultSize, 0 )
         self.m_staticText1.Wrap( -1 )
 
         gSizer1.Add( self.m_staticText1, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 
         combo_groupsChoices = []
-        self.combo_groups = wx.ComboBox( self, wx.ID_ANY, _(u"2"), wx.DefaultPosition, wx.DefaultSize, combo_groupsChoices, 0 )
+        self.combo_groups = wx.ComboBox( self, wx.ID_ANY, _(u"2"), wx.DefaultPosition, wx.Size( 150,-1 ), combo_groupsChoices, 0 )
         gSizer1.Add( self.combo_groups, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT, 5 )
+
+        self.m_staticText2 = wx.StaticText( self, wx.ID_ANY, _(u"Zu verteilende Mitglieder:"), wx.DefaultPosition, wx.DefaultSize, 0 )
+        self.m_staticText2.Wrap( -1 )
+
+        gSizer1.Add( self.m_staticText2, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+        combo_membersChoices = []
+        self.combo_members = wx.ComboBox( self, wx.ID_ANY, _(u"10"), wx.DefaultPosition, wx.Size( 150,-1 ), combo_membersChoices, 0 )
+        gSizer1.Add( self.combo_members, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT, 5 )
 
 
         bSizer3.Add( gSizer1, 1, 0, 5 )

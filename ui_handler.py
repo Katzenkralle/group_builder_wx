@@ -17,7 +17,6 @@ MEMBERS_INITIAL_VALUE = 12
 HIGHLIGHT_COLOR = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
 BACKGROUND_COLOR = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
 
-
 EVT_FORCE_RERENDER = wx.NewEventType()
 EVT_FORCE_RERENDER_BINDER = wx.PyEventBinder(EVT_FORCE_RERENDER)
 
@@ -155,7 +154,8 @@ class InteractiveGrid(wx.grid.Grid):
         # Columns
         self.SetColSize( 0, 160 )
         self.SetColSize( 1, 160 )
-        self.SetColSize( 2, 300 )
+        self.SetColSize( 2, 400 )
+        self.EnableGridLines( True )
         self.EnableDragColMove( False )
         self.EnableDragColSize( True )
         self.SetColLabelValue( 0, u"Gruppen")
@@ -171,6 +171,8 @@ class InteractiveGrid(wx.grid.Grid):
 
         # Cell Defaults
         self.SetDefaultCellAlignment( wx.ALIGN_CENTER, wx.ALIGN_TOP )
+        self.DisableDragRowSize()
+        self.DisableDragColSize()
 
         # Interactivity
         self.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.on_grid_interaction)
