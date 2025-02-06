@@ -99,9 +99,9 @@ class GroupCalculator:
         
         students_list: list[int] = list(range(self.__n_students))
         this_iteration = self.get_iteration()+1
-        random.shuffle(students_list)
 
         if self.__whitlist is None:
+            random.shuffle(students_list)
             self.__whitlist = {student: list(filter(lambda x: x != student, students_list)) for student in students_list}
         else:
             for student in self.__whitlist:
@@ -113,8 +113,9 @@ class GroupCalculator:
         for i in range(0, g_rest):
             group_layout[GroupCalculator.get_group_letter(i)].append(-1)
 
-        MAX_AGE_CR = 20
+        MAX_AGE_CR = 10000
         virtual_members = {key: [] for key in group_layout} # Alternaativly pass blocked groups around (might be faster)
+        last_colision = []
         # Note the CR will never match none whitlist pairs
         def change_request(destination: str, whitelist_requirement: int, req_age: int, future_layout: dict[str, list[int]]) -> None | dict[str, list[int]]:
             #if len(blocking_members) == self.__group_size or (len(blocking_members) > 0 and req_age == MAX_AGE_CR):
@@ -123,12 +124,17 @@ class GroupCalculator:
             # Finde optimal destaination, the handover if required
             group_ranking = []
             for group in future_layout:
-                # Highest is best
-                group_ranking.append([group, sum(map(lambda x: x in self.__whitlist[whitelist_requirement] or x == -1, future_layout[group]))])
-            best_match = sorted(group_ranking, key=lambda x: x[1], reverse=True)[0][0]
-            if best_match != destination:
+                # Lowest is best
+                group_ranking.append([group, sum(map(lambda x: x!=-1 and (x not in self.__whitlist[whitelist_requirement]), future_layout[group]))])
+            best_match = sorted(group_ranking, key=lambda x: x[1])[0]
+            if best_match[0] != destination:
                 #print(f"Handover from {destination} to {best_match}")
-                return change_request(best_match, whitelist_requirement, req_age, future_layout)
+                for group in filter(lambda x: x != destination, best_match[0]):
+                    response = change_request(group, whitelist_requirement, req_age+1, deepcopy(future_layout))
+                    if response is not None:
+                        return response
+                    
+                #return change_request(best_match, whitelist_requirement, req_age, future_layout)
                
             blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
 
@@ -162,8 +168,9 @@ class GroupCalculator:
                 virtual_members[destination].remove(blocker)
                 if not cr_success:
                     #print(f"Could not find a solution for blocker {blocker} while trying to fit {whitelist_requirement} in {destination}")
+                    last_colision.insert(0, blocker)
                     return None
-                        future_layout[destination][change_at_index] = -1
+                future_layout[destination][change_at_index] = -1
 
                 
             future_layout[destination][future_layout[destination].index(-1)] = whitelist_requirement
@@ -172,16 +179,39 @@ class GroupCalculator:
             
         # Add the members to the groups
         added_members = []
-        for student in students_list:
-            # 1: Try fitting directly
+        i = 0
+        max_iterations = len(students_list)**2 if self.__pair_repetition_brakepoinnt == sys.maxsize else len(students_list)
+        mutable_students_list = deepcopy(students_list)
+        while mutable_students_list != [] and i < max_iterations:
+            student = mutable_students_list.pop(0)
             # 2: Try fitting with CR
             # 3: Fill up rest with prioritys
-            for group in group_layout:
-                res = change_request(group, whitelist_requirement=student, req_age=0, future_layout=deepcopy(group_layout))
-                if res is not None:
-                    group_layout = res
-                    added_members.append(student)
-                    break
+        
+            res = change_request("A", whitelist_requirement=student, req_age=0, future_layout=deepcopy(group_layout))
+            if res is not None:
+                group_layout = res
+                added_members.append(student)
+                
+            else:
+                # backtracking
+                last_added = []
+                if  added_members != []:
+                    last_added.append(added_members.pop(0))
+                    for group in group_layout:
+                        group_layout[group] = list(map(lambda x: -1 if x == last_added[0] else x, group_layout[group]))
+                for group in group_layout:
+                    if -1 not in group_layout[group]:
+                        group_layout[group] = sorted(group_layout[group], key=lambda x: len(self.__whitlist[x]), reverse=True)
+                        last_added.append(group_layout[group].pop(0))
+                        added_members.pop(added_members.index(last_added[-1]))
+                        group_layout[group].append(-1)
+                        
+                mutable_students_list = [student] + mutable_students_list + last_added
+                last_colision = []
+                i += 1
+
+                    
+            
             
         # Add left over members to groups
         for student in filter(lambda x: x not in added_members, students_list):
