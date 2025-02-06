@@ -117,10 +117,21 @@ class GroupCalculator:
         virtual_members = {key: [] for key in group_layout} # Alternaativly pass blocked groups around (might be faster)
         # Note the CR will never match none whitlist pairs
         def change_request(destination: str, whitelist_requirement: int, req_age: int, future_layout: dict[str, list[int]]) -> None | dict[str, list[int]]:
-            blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
             #if len(blocking_members) == self.__group_size or (len(blocking_members) > 0 and req_age == MAX_AGE_CR):
             #    return None
           
+            # Finde optimal destaination, the handover if required
+            group_ranking = []
+            for group in future_layout:
+                # Highest is best
+                group_ranking.append([group, sum(map(lambda x: x in self.__whitlist[whitelist_requirement] or x == -1, future_layout[group]))])
+            best_match = sorted(group_ranking, key=lambda x: x[1], reverse=True)[0][0]
+            if best_match != destination:
+                #print(f"Handover from {destination} to {best_match}")
+                return change_request(best_match, whitelist_requirement, req_age, future_layout)
+               
+            blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
+
             if list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), virtual_members.get(destination, []))) != []:
                 # The group is blocked by a member that is to be added to the group
                 return None
@@ -131,13 +142,6 @@ class GroupCalculator:
                     #print(f"To many blocking members while trying to fit {whitelist_requirement} in {destination}")
                     return None
                 # Happens when destination is full and no collision is present
-                # We try to pass throu throu the element to the nexst groups cr, if possible
-                if req_age >= self.__n_groups-1:
-                    for group in filter(lambda x: -1 in future_layout[x], future_layout):
-                        response = change_request(group, whitelist_requirement=whitelist_requirement, req_age=req_age+1, future_layout=deepcopy(future_layout))
-                        if response is not None:
-                            return response
-                # else we try to add the element to the group, by moving things around
                 blocking_members.append(to_append[0])
 
             for blocker in blocking_members:
@@ -159,7 +163,7 @@ class GroupCalculator:
                 if not cr_success:
                     #print(f"Could not find a solution for blocker {blocker} while trying to fit {whitelist_requirement} in {destination}")
                     return None
-                future_layout[destination][change_at_index] = -1
+                        future_layout[destination][change_at_index] = -1
 
                 
             future_layout[destination][future_layout[destination].index(-1)] = whitelist_requirement
@@ -181,7 +185,6 @@ class GroupCalculator:
             
         # Add left over members to groups
         for student in filter(lambda x: x not in added_members, students_list):
-            print(f"Adding leftover member {student}")
             # group[1] is the group members, group[0] is name of the group
             prefered_group_key = []
             for name in group_layout:
@@ -193,6 +196,7 @@ class GroupCalculator:
             prefered_group_key = sorted(prefered_group_key, key=lambda x: x[1] + x[2])[0]
             if prefered_group_key[1] > 0 and self.__pair_repetition_brakepoinnt > this_iteration:
                 self.__pair_repetition_brakepoinnt = this_iteration
+                print({"Iteration": this_iteration, "Student": student, "Group": prefered_group_key[0], "Colisions": prefered_group_key[1], "To long punishment": prefered_group_key[2]})
             prefered_group = group_layout[prefered_group_key[0]]
             prefered_group.append(student)
 
