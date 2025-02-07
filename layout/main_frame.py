@@ -22,7 +22,7 @@ class MainFrame ( wx.Frame ):
     def __init__( self, parent ):
         wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = wx.EmptyString, pos = wx.DefaultPosition, size = wx.Size( 1024,900 ), style = wx.DEFAULT_FRAME_STYLE|wx.TAB_TRAVERSAL )
 
-        self.SetSizeHints( (1024,900), wx.DefaultSize )
+        self.SetSizeHints( wx.Size( 1024,900 ), wx.DefaultSize )
 
         bSizer2 = wx.BoxSizer( wx.VERTICAL )
 
@@ -32,18 +32,29 @@ class MainFrame ( wx.Frame ):
 
         gSizer4 = wx.GridSizer( 0, 3, 0, 0 )
 
-        self.m_staticText8 = wx.StaticText( self, wx.ID_ANY, _(u"Zusammensetzungen:"), wx.DefaultPosition, wx.DefaultSize, 0 )
+        self.m_staticText8 = wx.StaticText( self, wx.ID_ANY, _(u"Zusammensetzungen:"), wx.DefaultPosition, wx.Size( 210,25 ), 0 )
         self.m_staticText8.Wrap( -1 )
 
+        self.m_staticText8.SetFont( wx.Font( 14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False, wx.EmptyString ) )
+
         gSizer4.Add( self.m_staticText8, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+        bSizer12 = wx.BoxSizer( wx.VERTICAL )
+
+        self.pair_repetition_info = wx.StaticText( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+        self.pair_repetition_info.Wrap( -1 )
+
+        bSizer12.Add( self.pair_repetition_info, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_CENTER_HORIZONTAL, 5 )
 
         self.pair_repetition_warning = wx.StaticText( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
         self.pair_repetition_warning.Wrap( -1 )
 
-        self.pair_repetition_warning.SetFont( wx.Font( wx.NORMAL_FONT.GetPointSize(), wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False, wx.EmptyString ) )
         self.pair_repetition_warning.SetForegroundColour( wx.SystemSettings.GetColour( wx.SYS_COLOUR_HIGHLIGHT ) )
 
-        gSizer4.Add( self.pair_repetition_warning, 0, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 5 )
+        bSizer12.Add( self.pair_repetition_warning, 0, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL, 5 )
+
+
+        gSizer4.Add( bSizer12, 1, wx.EXPAND, 5 )
 
         iterations_choiseChoices = [ wx.EmptyString ]
         self.iterations_choise = wx.Choice( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, iterations_choiseChoices, 0 )

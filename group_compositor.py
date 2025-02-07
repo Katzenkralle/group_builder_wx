@@ -26,7 +26,8 @@ class InvalideGroupSize(Exception):
 
 
 class GroupCalculator:
-    def __init__(self, n_students: int|None = 0, n_groups: int | None = None):
+    def __init__(self, n_students: int|None = 0, n_groups: int | None = None, allow_setting_invalid_inputs: bool = False):
+        self.__allow_setting_invalid_inputs = allow_setting_invalid_inputs
         if n_students != None and n_groups != None and n_students <= n_groups:
             raise InvalideGroupSize("The number of students must be greater than the number of groups")
         self.__n_students: int|None = n_students
@@ -56,7 +57,7 @@ class GroupCalculator:
         return iteration
     
     def __try_calc_group_size(self):
-        if self.__n_students is not None and self.__n_groups is not None:
+        if self.__n_students is not None and self.__n_groups is not None and self.__n_groups > 0:
             self.__group_size = self.__n_students // self.__n_groups
 
     @property
@@ -69,7 +70,7 @@ class GroupCalculator:
 
     @n_students.setter
     def n_students(self, value: int):
-        if value is not None and value < 0:
+        if not self.__allow_setting_invalid_inputs and value is not None and value <= 0:
             raise ValueError("The number of students must be greater than 0")
         self.reset_groups()
         self.__n_students = value
@@ -81,7 +82,7 @@ class GroupCalculator:
     
     @n_groups.setter
     def n_groups(self, value: int):
-        if value is not None and value < 0:
+        if not self.__allow_setting_invalid_inputs and value is not None and value <= 0:
             raise ValueError("The number of groups must be greater than 0")
         self.reset_groups()
         self.__n_groups = value
@@ -92,7 +93,7 @@ class GroupCalculator:
 
     def create_groups(self):
         start_time = time.time()
-        if self.__n_students is None or self.__n_groups is None:
+        if self.__n_students is None or self.__n_groups is None or self.__n_groups == 0 or self.__n_students == 0:
             raise ValueError("The number of students and groups must be set before creating groups")
         if self.__n_groups >= self.__n_students:
             raise InvalideGroupSize("The number of students must be greater than the number of groups")
@@ -113,7 +114,6 @@ class GroupCalculator:
         for i in range(0, g_rest):
             group_layout[GroupCalculator.get_group_letter(i)].append(-1)
 
-        MAX_AGE_CR = 10000
         virtual_members = {key: [] for key in group_layout} # Alternaativly pass blocked groups around (might be faster)
         last_colision = []
         # Note the CR will never match none whitlist pairs
@@ -183,7 +183,7 @@ class GroupCalculator:
         max_iterations = len(students_list)**2 if self.__pair_repetition_brakepoinnt == sys.maxsize else len(students_list)
         mutable_students_list = deepcopy(students_list)
         while mutable_students_list != [] and i < max_iterations:
-            student = mutable_students_list.pop(0)
+            student = mutable_students_list.pop()
             # 2: Try fitting with CR
             # 3: Fill up rest with prioritys
         
@@ -206,7 +206,7 @@ class GroupCalculator:
                         added_members.pop(added_members.index(last_added[-1]))
                         group_layout[group].append(-1)
                         
-                mutable_students_list = [student] + mutable_students_list + last_added
+                mutable_students_list = last_added + mutable_students_list + [student]
                 last_colision = []
                 i += 1
 
@@ -214,7 +214,7 @@ class GroupCalculator:
             
             
         # Add left over members to groups
-        for student in filter(lambda x: x not in added_members, students_list):
+        for student in mutable_students_list:
             # group[1] is the group members, group[0] is name of the group
             prefered_group_key = []
             for name in group_layout:

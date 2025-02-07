@@ -3,8 +3,8 @@ from layout import main_frame, num_input, csv_input
 import wx
 from wx.lib.mixins.grid import GridAutoEditMixin
 import group_compositor
-
-group_creator = group_compositor.GroupCalculator()
+import sys
+group_creator = group_compositor.GroupCalculator(allow_setting_invalid_inputs=True)
 
 if 'app' not in globals():
     # Needet to allow imports from files other than main.py
@@ -125,7 +125,12 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
             wx.PostEvent(self.GetParent(), ForceRerender(EVT_FORCE_RERENDER, self.GetId()))
 
     def on_csv_fileselect(self, event):
-        headers = group_creator.read_csv_columns(event.GetPath())
+        try: 
+            headers = group_creator.read_csv_columns(event.GetPath())
+        except Exception as e:
+            wx.MessageBox(f"CSV-Datei kann nicht Verarbeitet werden. ({e})", "Error", wx.OK | wx.ICON_ERROR)
+            self.csv_filepicker.SetPath("")
+            return
         self.members_header_csv.Set(headers)
         self.members_header_csv.SetSelection(0)
         self.members_header_csv_sub.Set([""] + headers)
@@ -292,8 +297,14 @@ class MainFrameHandler(main_frame.MainFrame):
     def check_pair_repetition_warning(self):
         if int(self.iterations_choise.GetSelection()) >= group_creator.pair_repetition_brakepoinnt:
             self.pair_repetition_warning.SetLabel("Achtung: Wiederholung von Paaren")
+            self.pair_repetition_warning.GetParent().Layout()
         else:
             self.pair_repetition_warning.SetLabel("")
+        if group_creator.pair_repetition_brakepoinnt == sys.maxsize:
+            self.pair_repetition_info.SetLabel("Noch keine Wiederholung von Paaren")
+        else:
+            self.pair_repetition_info.SetLabel(f"Ab Iteration {group_creator.pair_repetition_brakepoinnt} Wiederholung von Paaren")
+        
 
     def reset_state(self, _, generate_new = True):
         group_creator.reset_groups()
@@ -343,6 +354,7 @@ class MainFrameHandler(main_frame.MainFrame):
 
     def on_new_iteration(self, _):
         try:
+            wx.BeginBusyCursor()
             print(group_creator.create_groups())
         except ValueError:
             if self.notebook_modes.GetSelection() == 0:
@@ -353,6 +365,8 @@ class MainFrameHandler(main_frame.MainFrame):
         except group_compositor.InvalideGroupSize as e:
             wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
             return
+        finally:
+            wx.EndBusyCursor()
         new_group = group_creator.get_current_group()
         self.iterations_choise.Set(list(map(lambda x: str(x), range(group_creator.get_iteration()+1))))
         self.iterations_choise.SetSelection(group_creator.get_iteration())
