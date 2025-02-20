@@ -7,30 +7,41 @@ import time
 from copy import deepcopy
 import sys
 
+
 @dataclass
-class GroupCanidates:
-    members: list[int]
-    colisions: int
+class GroupCandidates:
+    """
+    Represents a group of candidates.
+    """
+    members: list[int]  #: A list of integers representing the members of the group.
+    collisions: int  #: The number of collisions or conflicts within the group.
+
 
 @dataclass
 class CsvMeta:
-    dialect: csv.Dialect
-    header: bool
-    headers: list[str]
-    path: str
-    encoding: str
+    """
+    Meta data about the CSV file opend by the user.
+    """
+    dialect: csv.Dialect #: The dialect of the CSV file. Includes the delimiter and other information.
+    header: bool #: If the CSV file has a header.
+    headers: list[str] #: A list of the headers in the CSV file. Or [Column n] if no header is present.
+    path: str #: The path to the CSV file.
+    encoding: str #: The encoding of the CSV file.
 
 class InvalideGroupSize(Exception):
+    """
+    Exception raised when the number of students is less than the number of groups.
+    """
     pass
 
 
 
 class GroupCalculator:
-    def __init__(self, n_students: int|None = 0, n_groups: int | None = None, allow_setting_invalid_inputs: bool = False):
+    def __init__(self, n_members: int|None = 0, n_groups: int | None = None, allow_setting_invalid_inputs: bool = False):
         self.__allow_setting_invalid_inputs = allow_setting_invalid_inputs
-        if n_students != None and n_groups != None and n_students <= n_groups:
+        if n_members != None and n_groups != None and n_members <= n_groups:
             raise InvalideGroupSize("The number of students must be greater than the number of groups")
-        self.__n_students: int|None = n_students
+        self.__n_members: int|None = n_members
         self.__n_groups: int|None = n_groups
 
         self.__group_size: int|None = None
@@ -57,23 +68,23 @@ class GroupCalculator:
         return iteration
     
     def __try_calc_group_size(self):
-        if self.__n_students is not None and self.__n_groups is not None and self.__n_groups > 0:
-            self.__group_size = self.__n_students // self.__n_groups
+        if self.__n_members is not None and self.__n_groups is not None and self.__n_groups > 0:
+            self.__group_size = self.__n_members // self.__n_groups
 
     @property
     def pair_repetition_brakepoinnt(self):
         return self.__pair_repetition_brakepoinnt
 
     @property
-    def n_students(self):
-        return self.__n_students
+    def n_members(self):
+        return self.__n_members
 
-    @n_students.setter
-    def n_students(self, value: int):
+    @n_members.setter
+    def n_members(self, value: int):
         if not self.__allow_setting_invalid_inputs and value is not None and value <= 0:
             raise ValueError("The number of students must be greater than 0")
         self.reset_groups()
-        self.__n_students = value
+        self.__n_members = value
         self.__try_calc_group_size()
 
     @property
@@ -93,12 +104,12 @@ class GroupCalculator:
 
     def create_groups(self):
         start_time = time.time()
-        if self.__n_students is None or self.__n_groups is None or self.__n_groups == 0 or self.__n_students == 0:
+        if self.__n_members is None or self.__n_groups is None or self.__n_groups == 0 or self.__n_members == 0:
             raise ValueError("The number of students and groups must be set before creating groups")
-        if self.__n_groups >= self.__n_students:
+        if self.__n_groups >= self.__n_members:
             raise InvalideGroupSize("The number of students must be greater than the number of groups")
         
-        students_list: list[int] = list(range(self.__n_students))
+        students_list: list[int] = list(range(self.__n_members))
         this_iteration = self.get_iteration()+1
 
         if self.__whitlist is None:
@@ -109,7 +120,7 @@ class GroupCalculator:
                 self.__whitlist[student]
 
         # Assemble the groups
-        g_rest = self.__n_students % self.__n_groups
+        g_rest = self.__n_members % self.__n_groups
         group_layout: dict[str, list[int]] = {key: [-1 for _ in range(self.__group_size)] for key in map(GroupCalculator.get_group_letter, range(self.__n_groups))}
         for i in range(0, g_rest):
             group_layout[GroupCalculator.get_group_letter(i)].append(-1)
@@ -323,7 +334,7 @@ class GroupCalculator:
                 row = [row_assambler(row) for row in reader]
         row = list(map(lambda x: list(filter(lambda y: y != "", x)), row))
         self.alias = {i: ", ".join(row[i]) for i in range(0, len(row))}
-        self.__n_students = len(row) # Else it would trigger an reset
+        self.__n_members = len(row) # Else it would trigger an reset
         return 
 
     def can_repeat(self):

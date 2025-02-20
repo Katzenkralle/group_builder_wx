@@ -12,13 +12,14 @@ documentation for details.
 
 
 .. toctree::
-   :maxdepth: 6
+   :maxdepth: 2
    :caption: Contents:
 
 
    main
    group_compositor
    ui_handler
+   layout
 
 Indices and tables
 ==================

@@ -25,11 +25,10 @@ class ForceRerender(wx.PyCommandEvent):
     Custom event to force the UI to rerender.
     This event can be used to trigger a rerender of the UI components in a wxPython application.
     
-    Args:
-        :param evtType: The type of the event.
-        :type evtType: int
-        :param id: The identifier of the event.
-        :type id: int    
+    :param evtType: The type of the event.
+    :type evtType: int
+    :param id: The identifier of the event.
+    :type id: int    
     """
     def __init__(self, evtType, id):
         wx.PyCommandEvent.__init__(self, evtType, id)
@@ -37,7 +36,21 @@ class ForceRerender(wx.PyCommandEvent):
 
 
 class InpUtilsMixin:
+    """
+    Handels the numeric inputs of the user. This includes validation and event handling.
+    """
     def on_group_composition_value_change(self, target: str, value = None):
+        """
+        Updates the group composition for ``target``. With the value provided.
+        If the value is not a number, or an invalid target is selected nothing will be done.
+
+        :param target: The target to update. Can be "group" or "member".
+        :type target: str
+        :param value: The new value.
+        :type value: str
+
+        :return: None
+        """
         try:
             value = int(value)
         except ValueError:
@@ -46,17 +59,20 @@ class InpUtilsMixin:
             case "group":
                 group_creator.n_groups = value
             case "member":
-                group_creator.n_students = value
+                group_creator.n_members = value
             case None:
                 pass
         return
     
     def only_allow_number(self, event):
         """
-        Allows only numeric input for age and height fields.
+        Allows only numeric input for age and height fields by preventing propagation 
+        of non-numeric key events.
 
-        Args:
-            event: The key event.
+        :param event: The event that triggered the input.
+        :type event: wx.KeyEvent
+
+        :return: None
         """
         key_code = event.GetKeyCode()
         # Check if the key is a number, backspace, or a control key (e.g., arrow keys)
@@ -66,7 +82,25 @@ class InpUtilsMixin:
             event.StopPropagation()  # Reject the input
 
 class NumInpHandler(num_input.NumInput, InpUtilsMixin):
+    """
+    Handles the user input for the numeric input tab.
+    Uses the :class:`InpUtilsMixin` to update the group composition with the user input.
+    Layout is constructed in the base class :class:`layout.num_input.NumInput`.
+    
+    The following events are bound:
+        - combo_members: :const:`wx.EVT_TEXT` -> :meth:`on_change_members`
+        - combo_members, combo_groups: :const:`wx.EVT_CHAR` -> :meth:`InpUtilsMixin.only_allow_number`
+        - combo_groups: :const:`wx.EVT_TEXT` -> :meth:`InpUtilsMixin.on_group_composition_value_change`
+    """
     def __init__(self, parent):
+        """
+        Initializes the UI with the given parent widget and sets default values.
+        
+        :param parent: The parent window for this handler.
+        :type parent: wx.Window
+
+        :return: None     
+        """
         super().__init__(parent)
         self.combo_members.Set([str(i) for i in range(4, 30)])
         self.combo_members.Bind(wx.EVT_TEXT, self.on_change_members)
@@ -81,20 +115,64 @@ class NumInpHandler(num_input.NumInput, InpUtilsMixin):
 
 
     def on_change_members(self, event):
+        """
+        First updates the group composition with the new value from the event by calling :meth:`InpUtilsMixin.on_group_composition_value_change`.
+        Then takes the new value from the event, updates `combo_groups` with new suggestions,
+        and selects the middle value.
+
+        :param event: The event that triggered the change.
+        :type event: wx.CommandEvent
+
+        :return: None
+        """
         self.on_group_composition_value_change("member", event.GetString())
-        self.combo_groups.Set([str(i) for i in range(2, group_creator.n_students//2)])
-        self.combo_groups.SetValue(str(group_creator.n_students//4))
+        self.combo_groups.Set([str(i) for i in range(2, group_creator.n_members//2)])
+        self.combo_groups.SetValue(str(group_creator.n_members//4))
 
     def Enable(self, enable=True):
+        """
+        Used to enable or disable the input fields.
+
+        :param enable: Defaults to `true`.
+        :type enable: bool
+
+        :return: None
+        """
         self.combo_groups.Enable(enable)
         self.combo_members.Enable(enable)
 
     def on_activation(self):
+        """
+        Updates the values of groups and members in `group_creator` to the current values of the input fields
+        by calling :meth:`InpUtilsMixin.on_group_composition_value_change`.
+
+        :return: None
+        """
         self.on_group_composition_value_change("member", int(self.combo_members.GetValue()))
         self.on_group_composition_value_change("group", int(self.combo_groups.GetValue()))
 
 class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
+    """
+    Handles the user input for the CSV input tab.
+    Uses the :class:`InpUtilsMixin` to update the group composition with the user input.
+    Layout is constructed in the base class :class:`layout.csv_input.CsvInput`.
+
+    The following events are bound:
+        - csv_filepicker: :const:`wx.EVT_FILEPICKER_CHANGED` -> :meth:`on_csv_fileselect`
+        - members_header_csv, members_header_csv_sub: :const:`wx.EVT_CHOICE` -> :meth:`on_header_selection_change`
+        - combo_groups: :const:`wx.EVT_TEXT` -> :meth:`InpUtilsMixin.on_group_composition_value_change`
+        - combo_groups: :const:`wx.EVT_CHAR` -> :meth:`InpUtilsMixin.only_allow_number`
+    """
+    
     def __init__(self, parent):
+        """
+        Initializes the UI with the given parent widget and sets default values.
+
+        :param parent: The parent window for this handler.
+        :type parent: wx.Window
+
+        :return: None
+        """
         super().__init__(parent)
         self.combo_groups.Set([str(i) for i in range(2, 11)])
         self.combo_groups.Bind(wx.EVT_TEXT, lambda e: self.on_group_composition_value_change("group", e.GetString()))
@@ -106,7 +184,14 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
         self.members_header_csv_sub.Bind(wx.EVT_CHOICE, self.on_header_selection_change)
     
     def on_activation(self):
-        group_creator.n_students = None
+        """
+        Sets the values of groups in `group_creator` to the current value of the input field by calling :meth:`InpUtilsMixin.on_group_composition_value_change`.
+        If a column of a CSV file is selected it will try to set the members in `group_creator` appropriately.
+        If the column selection is invalid, the value will be set to `None`        
+
+        :return: None
+        """
+        group_creator.n_members = None
         self.on_group_composition_value_change("group", int(self.combo_groups.GetValue()))
         try:
             self.on_header_selection_change(None, trigger_rerender=False)
@@ -114,17 +199,45 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
             pass
     
     def Enable(self, enable=True):
+        """
+        Used to enable or disable the input fields.
+
+        :param enable: Defaults to `true`.
+        :type enable: bool
+        
+        :return: None
+        """
         self.combo_groups.Enable(enable)
         self.csv_filepicker.Enable(enable)
         self.members_header_csv.Enable(enable)
         self.members_header_csv_sub.Enable(enable)
 
     def on_header_selection_change(self, _, trigger_rerender = True):
+        """
+        Updates the members in `group_creator` with the selected columns from the CSV file.
+        
+        :param _: The event that triggered the change, not used by the Methode.
+        :param trigger_rerender: If `True` a class:`ForceRerender` event will be posted to the parent window.
+        :type trigger_rerender: bool
+
+        :return: None
+        """
+
         group_creator.select_from_csv_file([self.members_header_csv.GetStringSelection(), self.members_header_csv_sub.GetStringSelection()])
         if trigger_rerender:
             wx.PostEvent(self.GetParent(), ForceRerender(EVT_FORCE_RERENDER, self.GetId()))
 
     def on_csv_fileselect(self, event):
+        """
+        Reads the columns of the selected CSV file and updates the choices in the header selection fields.
+        Also sets the recomended group size and posts a class:`ForceRerender` event to the parent window.
+
+        :param event: The event that triggered the file selection.
+        :type event: wx.FileDirPickerEvent
+
+        :return: None
+        """
+        headers = {}
         try: 
             headers = group_creator.read_csv_columns(event.GetPath())
         except Exception as e:
@@ -137,13 +250,40 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
         self.members_header_csv_sub.SetSelection(0)
         # Must trigger mannually, because the event is not triggered by the SetSelection method
         self.on_header_selection_change(None, trigger_rerender=False)
-        self.combo_groups.Set([str(i) for i in range(2, group_creator.n_students//2)])
-        self.combo_groups.SetValue(str(group_creator.n_students//4))
+        self.combo_groups.Set([str(i) for i in range(2, group_creator.n_members//2)])
+        self.combo_groups.SetValue(str(group_creator.n_members//4))
         wx.PostEvent(self.GetParent(), ForceRerender(EVT_FORCE_RERENDER, self.GetId()))
 
 
 class InteractiveGrid(wx.grid.Grid):
+    """
+    Constructs a grid, from the base :class:`wx.grid.Grid`, that allows the user to interact with the data 
+    and that is specifically designed to display the group composition.
+    The grid is read-only by default, but the user can edit the alias of the members by clicking on the cell.
+    The user can change the displayed group by clicking on the group name cell, the current selection will be highlighted.
+
+    The following events are bound:
+        - :const:`wx.grid.EVT_GRID_LABEL_LEFT_CLICK`, :const:`wx.grid.EVT_GRID_CELL_LEFT_DCLICK` -> Stops the propagation of the event.
+        - :const:`wx.grid.EVT_GRID_CELL_LEFT_CLICK` -> :meth:`on_grid_interaction`
+        - :const:`wx.grid.EVT_GRID_CELL_CHANGED` -> :meth:`on_grid_value_change`
+    """
+    
+
     def __init__(self, parent, id = None, pos = None, size = None, style = None):
+        """
+        Construct discribed grid with the given parent widget and default values.
+
+        :param parent: The parent window for this handler.
+        :type parent: wx.Window
+        :param id: The identifier for the grid - Defaul None.
+        :type id: int | None
+        :param pos: The position of the grid - Default None.
+        :type pos: wx.Point | None
+        :param size: The size of the grid - Default None.
+        :type size: wx.Size | None
+        :param style: The style of the grid - Default None.
+        :type style: int | None
+        """
         super().__init__(parent, id, pos, size, style)
         # Grid general
         self.CreateGrid( 0, 3 )
@@ -187,6 +327,16 @@ class InteractiveGrid(wx.grid.Grid):
 
     
     def on_grid_interaction(self, event):
+        """
+        Depending on the position of the click, the method will change the displayed group, 
+        allow the user to edit the alias of a member or ignore the event.
+        If the event is ignored, it will be propagated.
+
+        :param event: The event that triggered the interaction.
+        :type event: wx.grid.GridEvent
+
+        :return: None
+        """
         # Get location of the cell
         row = event.GetRow()
         match event.GetCol():
@@ -217,6 +367,15 @@ class InteractiveGrid(wx.grid.Grid):
         return
     
     def on_grid_value_change(self, event):
+        """
+        Update the alias of a member in the group_creator object when the user changes the value of a cell
+        that is in the alias column and currently used in the group.
+
+        :param event: The event that triggered the value change.
+        :type event: wx.grid.GridEvent
+
+        :return: None
+        """
         row = event.GetRow()
         col = event.GetCol()
         member = self.GetCellValue(row, 1)
@@ -226,6 +385,16 @@ class InteractiveGrid(wx.grid.Grid):
         return
     
     def render_groupmembers(self, group):
+        """
+        Renders the members of the group in the grid.
+        IDs are displayed in the second column and the alias in the third column.
+        It will clear the grid before rendering the new group to clear old data/states.
+
+        :param group: The group to render.
+        :type group: dict{str: list[int]}
+
+        :return: None
+        """
         counter = 0
         while True:
             cell_value = self.GetCellValue(counter, 1)
@@ -246,12 +415,20 @@ class InteractiveGrid(wx.grid.Grid):
             self.SetReadOnly(i, 2, True)
 
     def rerender_groups(self, groups):
-        # Update table
+        """
+        Renders the selectable groupnames in the first column and triggers :meth:`render_groupmembers`.
+        Also highlights the first group in the list if its name is not empty.
+
+        :param groups: The groups to render.
+        :type groups: dict{str: list[int]}
+
+        :return: None
+        """
         try:
             self.DeleteRows(0, self.GetNumberRows())
         except wx._core.wxAssertionError:
             pass
-        n_rows = max([group_creator.n_students, len(groups)])
+        n_rows = max([group_creator.n_members, len(groups)])
         self.AppendRows(n_rows)
         for i in range(n_rows):
             self.SetReadOnly(i, 0, True)
@@ -270,8 +447,33 @@ class InteractiveGrid(wx.grid.Grid):
 
 
 class MainFrameHandler(main_frame.MainFrame):
-    
+    """
+    The "Hub" for all frontend interactions, and events.
+    Also implements the 'export to csv' functionality.
+    Layout is constructed in the base class :class:`layout.main_frame.MainFrame`.
+
+    The following events are bound:
+        - notebook_modes: :const:`wx.EVT_NOTEBOOK_PAGE_CHANGED` -> :meth:`on_page_change`
+        - edit_aliases_btn: :const:`wx.EVT_BUTTON` -> :meth:`on_edit_aliases`
+        - new_iteration_btn: :const:`wx.EVT_BUTTON` -> :meth:`on_new_iteration`
+        - reset_btn: :const:`wx.EVT_BUTTON` -> :meth:`reset_state`
+        - export_csv_btn: :const:`wx.EVT_BUTTON` -> :meth:`on_export_csv`
+        - iterations_choise: :const:`wx.EVT_CHOICE` -> :meth:`on_iteration` 
+    """
     def __init__(self, parent):
+        """
+        Constructs the main frame with the given parent widget and adds:
+            - :class:`NumInpHandler` 
+            - :class:`CsvInpHandler`
+            - :class:`InteractiveGrid`
+
+        Then calls :meth:`on_new_iteration` to generate the first group composition.
+
+        :param parent: The parent window for this handler.
+        :type parent: wx.Window
+
+        :return: None
+        """
         super().__init__(parent)
         self.InpNum = NumInpHandler(self.notebook_modes)
         self.InpCsv = CsvInpHandler(self.notebook_modes)
@@ -295,6 +497,11 @@ class MainFrameHandler(main_frame.MainFrame):
         self.on_new_iteration(None)
 
     def check_pair_repetition_warning(self):
+        """
+        Display a hint at which point the pairs are repeated.
+
+        :return: None
+        """
         if int(self.iterations_choise.GetSelection()) >= group_creator.pair_repetition_brakepoinnt:
             self.pair_repetition_warning.SetLabel("Achtung: Wiederholung von Paaren")
             self.pair_repetition_warning.GetParent().Layout()
@@ -307,6 +514,16 @@ class MainFrameHandler(main_frame.MainFrame):
         
 
     def reset_state(self, _, generate_new = True):
+        """
+        Resets the state of the group_creator object, also deleting aliases.
+        If the user is in the CSV input mode, it will try to read the CSV file again.
+
+        :param _: The event that triggered the reset, not used by the Methode.
+        :param generate_new: If `True` a new group composition will be generated - Defaults to `true`.
+        :type generate_new: bool
+
+        :return: None
+        """
         group_creator.reset_groups()
         group_creator.alias = {}
         if self.notebook_modes.GetSelection() == 1:
@@ -319,6 +536,11 @@ class MainFrameHandler(main_frame.MainFrame):
             self.on_new_iteration(None)
 
     def reset_view(self):
+        """
+        Resets the view by deleting all rows in the grid and resetting the iteration selection.
+
+        :return: None
+        """
         try:
             self.group_grid.DeleteRows(0, self.group_grid.GetNumberRows())
             self.iterations_choise.Set([])
@@ -326,6 +548,9 @@ class MainFrameHandler(main_frame.MainFrame):
             pass
 
     def rerender_or_create(self, _):
+        """
+        Render the selected itteration to the :class:`InteractiveGrid` or create a new Itteration.
+        """
         iter_choise = self.iterations_choise.GetSelection()
         if iter_choise != wx.NOT_FOUND and group_creator.get_current_group(iter_choise):
             self.group_grid.rerender_groups(group_creator.get_current_group(iter_choise))
@@ -333,11 +558,30 @@ class MainFrameHandler(main_frame.MainFrame):
             self.on_new_iteration(None)
 
     def on_iteration_view_change(self, event):
+        """
+        Render the selected itteration to the :class:`InteractiveGrid`.
+        Check :meth:`check_pair_repetition_warning` to display a warning if the pair repetition is reached.
+
+        :param event: The event that triggered the change.
+        :type event: wx.CommandEvent
+
+        :return: None
+        """
         group = group_creator.get_current_group(iteration=int(event.GetString()), replace_alias=False)
         self.check_pair_repetition_warning()
         self.group_grid.rerender_groups(group)
 
     def on_page_change(self, event):
+        """
+        Handle the page change event of the notebook_modes.
+        Triggering the activation of the new page and resetting the view of, if possible, 
+        directly generating a new group composition.
+
+        :param event: The event that triggered the change.
+        :type event: wx.CommandEvent
+
+        :return: None
+        """
         self.reset_state(None, generate_new=False)
         match event.GetSelection():
             case 0:
@@ -347,12 +591,21 @@ class MainFrameHandler(main_frame.MainFrame):
             case  _:
                 print("Invalid page. This should not happen")
         #self.reset_view()
-        if group_creator.n_groups and group_creator.n_students:
+        if group_creator.n_groups and group_creator.n_members:
             self.on_new_iteration(None)
         else:
             self.reset_view()
 
     def on_new_iteration(self, _):
+        """
+        Create a new group composition and render it to the :class:`InteractiveGrid`.
+        Also updates the itteration selection.
+        If the group composition is invalid, an error message will be displayed in a :class:`wx.MessageBox`.
+
+        :param _: The event that triggered the new iteration, not used by the Methode.
+
+        :return: None
+        """
         try:
             wx.BeginBusyCursor()
             print(group_creator.create_groups())
@@ -374,8 +627,18 @@ class MainFrameHandler(main_frame.MainFrame):
         self.group_grid.rerender_groups(new_group)
         
     def on_edit_aliases(self, _):
+        """
+        Allow the user to directly added the aliasses of al members by sequnecielly displaying all members in the grid.
+        All other inputs will be disabled during the editing process.
+        If ther are no Groups deffined a error in a :class:`wx.MessageBox` will be displayed.
+        After the edeting the previous state of the grid will be restored.
+
+        :param _: The event that triggered the edit, not used by the Methode.
+        
+        :return: None
+        """
         if self.iterations_choise.GetSelection() == wx.NOT_FOUND:
-            wx.MessageBox("Keine zu bearbeitenden Gruppen vorhanden.", "Error", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox("Keine zu bearbeitenden Gruppenmitglieder vorhanden.", "Error", wx.OK | wx.ICON_ERROR)
             return
         ui_enabled = True
         if self.edit_aliases_btn.GetLabel() == "Alias bearbeiten":
@@ -399,7 +662,16 @@ class MainFrameHandler(main_frame.MainFrame):
         self.export_csv_btn.Enable(ui_enabled)
         self.iterations_choise.Enable(ui_enabled)
 
-    def on_export_csv(self, event):
+    def on_export_csv(self, _):
+        """
+        Allows exporting the current group composition as a CSV file.
+        The user can select the path and name of the file.
+        If there are no groups to export, an error message will be displayed in a :class:`wx.MessageBox`.
+
+        :param _: The event that triggered the export, not used by the Methode.
+
+        :return: None
+        """
         if not group_creator.get_current_group():
             wx.MessageBox("No groups to export.", "Error", wx.OK | wx.ICON_ERROR)
             return
