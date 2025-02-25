@@ -6,7 +6,7 @@ import csv
 import time
 from copy import deepcopy
 import sys
-
+from itertools import chain
 
 @dataclass
 class GroupCandidates:
@@ -197,6 +197,8 @@ class GroupCalculator:
         :return: All groups from all iterations.
         :rtype: dict[int, dict[str, list[str]]]
         """
+        print("clear", end="")
+        print("Creating groups...", end="")
 
         if self.__n_members is None or self.__n_groups is None or self.__n_groups == 0 or self.__n_members == 0:
             raise ValueError("The number of students and groups must be set before creating groups")
@@ -222,32 +224,26 @@ class GroupCalculator:
         virtual_members = {key: [] for key in group_layout} # Alternaativly pass blocked groups around (might be faster)
         last_colision = []
         # Note the CR will never match none whitlist pairs
-        def change_request(whitelist_requirement: int, _future_layout: dict[str, list[int]]) -> None | dict[str, list[int]]:
-            #if len(blocking_members) == self.__group_size or (len(blocking_members) > 0 and req_age == MAX_AGE_CR):
-            #    return None
-          
+        def change_request(whitelist_requirement: int, _future_layout: dict[str, list[int]]) : # [bool, list[str] | dict[str, list[int]]]]
+            
             # Finde optimal destaination, the handover if required
             group_ranking = []
-            for group in filter(lambda x: not all(y == -2 for y in _future_layout[x]), _future_layout):
+            for group in filter(lambda x: not all(y == -2 for y in _future_layout[x]) and # The group compleatly blocked \
+                    list(filter(lambda z: whitelist_requirement not in self.__whitlist.get(z, students_list), virtual_members.get(x, []))) == [],  # The group is blocked by a member that is to be added to the group \
+                _future_layout):
                 # Lowest is best
                 group_ranking.append([group, sum(map(lambda x: x!=-1 and (x not in self.__whitlist[whitelist_requirement]), _future_layout[group]))])
             best_match = sorted(group_ranking, key=lambda x: x[1])
-            for group in map(lambda x: x[0], best_match):
-                destination = group
+
+            error_trace = {}
+            for destination in map(lambda x: x[0], best_match):
                 future_layout = deepcopy(_future_layout)
                 blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
-
-                if list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), virtual_members.get(destination, []))) != []:
-                    # The group is blocked by a member that is to be added to the group
-                    continue
                 
                 if -1 not in future_layout[destination] and blocking_members == []:
-                    to_append = list(filter(lambda x: x != -2, future_layout[destination]))
-                    if len(to_append) == 0:
-                        #print(f"To many blocking members while trying to fit {whitelist_requirement} in {destination}")
-                        continue
                     # Happens when destination is full and no collision is present
-                    blocking_members.append(to_append[0])
+                    continue
+                    blocking_members.append(list(filter(lambda x: x != -2, future_layout[destination]))[0])
 
                 for blocker in blocking_members:
                     if blocker not in future_layout[destination]:
@@ -260,54 +256,66 @@ class GroupCalculator:
                     response = change_request(whitelist_requirement=blocker, _future_layout=future_layout)
                     virtual_members[destination].remove(blocker)
 
-                    if response is not None:
-                        future_layout = response
+                    if response["success"]:
+                        future_layout = response["data"]
                     else:
                         #print(f"Could not find a solution for blocker {blocker} while trying to fit {whitelist_requirement} in {destination}")
                         # no need to reset future_layout[destination][change_at_index] = blocker for we deepcopied
                         last_colision.insert(0, blocker)
+                        error_trace[destination] = response["data"] + [blocker]
                         break
                     future_layout[destination][change_at_index] = -1
                 else:
                     future_layout[destination][future_layout[destination].index(-1)] = whitelist_requirement
                     #print(f"Added {whitelist_requirement} to {destination}")
-                    return future_layout
+                    return {"success": True, "data": future_layout}
                 continue
-
-            return None
+            shortest_backtrace = list(sorted(error_trace.items(), key=lambda x: len(x[1])))[0][1] if error_trace != {} else []
+            return {"success": False, "data": shortest_backtrace}
             
         # Add the members to the groups
         added_members = []
         i = 0
         max_iterations = len(students_list)**2 if self.__pair_repetition_brakepoinnt == sys.maxsize else len(students_list)
         mutable_students_list = deepcopy(students_list)
+        backtrack_memory = {1: [], 0: []}
         while mutable_students_list != [] and i < max_iterations:
             student = mutable_students_list.pop()
             # 2: Try fitting with CR
             # 3: Fill up rest with prioritys
         
-            res = change_request(whitelist_requirement=student, _future_layout=deepcopy(group_layout))
-            if res is not None:
-                group_layout = res
+            res = change_request(whitelist_requirement=student, _future_layout=group_layout)
+            if res["success"]:
+                group_layout = res["data"]
                 added_members.append(student)
-                
             else:
-                # backtracking
-                last_added = []
-                if  added_members != []:
-                    last_added.append(added_members.pop(0))
+                while True:
+                    member = added_members.pop(0)
                     for group in group_layout:
-                        group_layout[group] = list(map(lambda x: -1 if x == last_added[0] else x, group_layout[group]))
-                for group in group_layout:
-                    if -1 not in group_layout[group]:
-                        group_layout[group] = sorted(group_layout[group], key=lambda x: len(self.__whitlist[x]), reverse=True)
-                        last_added.append(group_layout[group].pop(0))
-                        added_members.pop(added_members.index(last_added[-1]))
-                        group_layout[group].append(-1)
-                        
-                mutable_students_list = last_added + mutable_students_list + [student]
-                last_colision = []
-                i += 1
+                        if member in group_layout[group]:
+                            group_layout[group][group_layout[group].index(member)] = -1
+                            break
+                    mutable_students_list.insert(0, member)
+                    print(f"\nBacktracking {member}", end="")
+                    res = change_request(whitelist_requirement=student, _future_layout=group_layout)
+                    if res["success"]:
+                        group_layout = res["data"]
+                        added_members.append(student)
+                        break
+                    
+            if len(backtrack_memory[0]) == len(backtrack_memory[1]) == self.n_members:
+                if backtrack_memory[0] == backtrack_memory[1]:
+                    print("\nNo solution found", end="")
+                    break
+                backtrack_memory[0] = []
+                backtrack_memory[1] = []
+            elif len(backtrack_memory[0]) < self.n_members:
+                backtrack_memory[0].append(student)
+            else:
+                backtrack_memory[1].append(student)
+            i += 1
+            print(f"\nAdded {student} to group", end="")
+
 
             
         # Add left over members to groups
@@ -323,7 +331,6 @@ class GroupCalculator:
             prefered_group_key = sorted(prefered_group_key, key=lambda x: x[1] + x[2])[0]
             if prefered_group_key[1] > 0 and self.__pair_repetition_brakepoinnt > this_iteration:
                 self.__pair_repetition_brakepoinnt = this_iteration
-                print({"Iteration": this_iteration, "Student": student, "Group": prefered_group_key[0], "Colisions": prefered_group_key[1], "To long punishment": prefered_group_key[2]})
             prefered_group = group_layout[prefered_group_key[0]]
             prefered_group.append(student)
 
@@ -334,7 +341,6 @@ class GroupCalculator:
              
         # The whitlist was updated during the group creation
         self.groups[this_iteration] = group_layout
-    
         return self.groups
     
     def get_current_group(self, iteration: int = None, replace_alias: bool = True):

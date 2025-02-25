@@ -446,6 +446,20 @@ class InteractiveGrid(wx.grid.Grid):
         self.Refresh()
 
 
+class RedirectText:
+    def __init__(self, text_ctrl):
+        self.out = text_ctrl
+
+    def write(self, string):
+        if string == "clear":
+            wx.CallAfter(self.out.Clear)
+            return
+
+        wx.CallAfter(self.out.AppendText, string)
+
+    def flush(self):
+        pass  # Required for compatibility with `sys.stdout`
+
 class MainFrameHandler(main_frame.MainFrame):
     """
     The "Hub" for all frontend interactions, and events.
@@ -493,6 +507,9 @@ class MainFrameHandler(main_frame.MainFrame):
         self.grid_container.Add( self.group_grid, 1, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL, 5 )
 
         self.notebook_modes.Bind(EVT_FORCE_RERENDER_BINDER, self.rerender_or_create)
+
+        sys.stdout = RedirectText(self.cli_output)
+        sys.stderr = RedirectText(self.cli_output)
 
         self.on_new_iteration(None)
 
@@ -608,7 +625,7 @@ class MainFrameHandler(main_frame.MainFrame):
         """
         try:
             wx.BeginBusyCursor()
-            print(group_creator.create_groups())
+            group_creator.create_groups()
         except ValueError:
             if self.notebook_modes.GetSelection() == 0:
                 wx.MessageBox("Ungültig Gruppenkomposition.", "Error", wx.OK | wx.ICON_ERROR)

@@ -71,6 +71,20 @@ class MainFrame ( wx.Frame ):
 
         bSizer2.Add( self.grid_container, 1, wx.EXPAND, 5 )
 
+        self.m_staticText10 = wx.StaticText( self, wx.ID_ANY, _(u"Info/Tasks:"), wx.DefaultPosition, wx.DefaultSize, 0 )
+        self.m_staticText10.Wrap( -1 )
+
+        self.m_staticText10.SetFont( wx.Font( wx.NORMAL_FONT.GetPointSize(), wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False, wx.EmptyString ) )
+        self.m_staticText10.SetMinSize( wx.Size( 100,20 ) )
+
+        bSizer2.Add( self.m_staticText10, 0, wx.ALL, 5 )
+
+        self.cli_output = wx.TextCtrl( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0|wx.HSCROLL|wx.TE_MULTILINE|wx.TE_READONLY )
+
+        self.cli_output.SetMinSize( wx.Size( -1,60 ) )
+
+        bSizer2.Add( self.cli_output, 0, wx.ALL|wx.EXPAND, 5 )
+
         bSizer10 = wx.BoxSizer( wx.HORIZONTAL )
 
         bSizer7 = wx.BoxSizer( wx.VERTICAL )
