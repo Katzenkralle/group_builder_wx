@@ -222,65 +222,59 @@ class GroupCalculator:
         virtual_members = {key: [] for key in group_layout} # Alternaativly pass blocked groups around (might be faster)
         last_colision = []
         # Note the CR will never match none whitlist pairs
-        def change_request(destination: str, whitelist_requirement: int, req_age: int, future_layout: dict[str, list[int]]) -> None | dict[str, list[int]]:
+        def change_request(whitelist_requirement: int, _future_layout: dict[str, list[int]]) -> None | dict[str, list[int]]:
             #if len(blocking_members) == self.__group_size or (len(blocking_members) > 0 and req_age == MAX_AGE_CR):
             #    return None
           
             # Finde optimal destaination, the handover if required
             group_ranking = []
-            for group in future_layout:
+            for group in filter(lambda x: not all(y == -2 for y in _future_layout[x]), _future_layout):
                 # Lowest is best
-                group_ranking.append([group, sum(map(lambda x: x!=-1 and (x not in self.__whitlist[whitelist_requirement]), future_layout[group]))])
-            best_match = sorted(group_ranking, key=lambda x: x[1])[0]
-            if best_match[0] != destination:
-                #print(f"Handover from {destination} to {best_match}")
-                for group in filter(lambda x: x != destination, best_match[0]):
-                    response = change_request(group, whitelist_requirement, req_age+1, deepcopy(future_layout))
-                    if response is not None:
-                        return response
-                    
-                #return change_request(best_match, whitelist_requirement, req_age, future_layout)
-               
-            blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
+                group_ranking.append([group, sum(map(lambda x: x!=-1 and (x not in self.__whitlist[whitelist_requirement]), _future_layout[group]))])
+            best_match = sorted(group_ranking, key=lambda x: x[1])
+            for group in map(lambda x: x[0], best_match):
+                destination = group
+                future_layout = deepcopy(_future_layout)
+                blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
 
-            if list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), virtual_members.get(destination, []))) != []:
-                # The group is blocked by a member that is to be added to the group
-                return None
-            
-            if -1 not in future_layout[destination] and blocking_members == []:
-                to_append = list(filter(lambda x: x != -2, future_layout[destination]))
-                if len(to_append) == 0:
-                    #print(f"To many blocking members while trying to fit {whitelist_requirement} in {destination}")
-                    return None
-                # Happens when destination is full and no collision is present
-                blocking_members.append(to_append[0])
-
-            for blocker in blocking_members:
-                if blocker not in future_layout[destination]:
-                    #print(f"Blocker {blocker} not anymore in group {destination}, skipping")
+                if list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), virtual_members.get(destination, []))) != []:
+                    # The group is blocked by a member that is to be added to the group
                     continue
-                change_at_index = future_layout[destination].index(blocker)
-                future_layout[destination][change_at_index] = -2 # Mark as blocked/imovable
+                
+                if -1 not in future_layout[destination] and blocking_members == []:
+                    to_append = list(filter(lambda x: x != -2, future_layout[destination]))
+                    if len(to_append) == 0:
+                        #print(f"To many blocking members while trying to fit {whitelist_requirement} in {destination}")
+                        continue
+                    # Happens when destination is full and no collision is present
+                    blocking_members.append(to_append[0])
 
-                virtual_members[destination].append(blocker)
-                cr_success = False
-                for group in filter(lambda x: x != destination, future_layout):
-                    response = change_request(group, whitelist_requirement=blocker, req_age=req_age+1, future_layout=deepcopy(future_layout))
+                for blocker in blocking_members:
+                    if blocker not in future_layout[destination]:
+                        #print(f"Blocker {blocker} not anymore in group {destination}, skipping")
+                        continue
+                    change_at_index = future_layout[destination].index(blocker)
+                    future_layout[destination][change_at_index] = -2 # Mark as blocked/imovable
+
+                    virtual_members[destination].append(blocker)
+                    response = change_request(whitelist_requirement=blocker, _future_layout=future_layout)
+                    virtual_members[destination].remove(blocker)
+
                     if response is not None:
                         future_layout = response
-                        cr_success = True
+                    else:
+                        #print(f"Could not find a solution for blocker {blocker} while trying to fit {whitelist_requirement} in {destination}")
+                        # no need to reset future_layout[destination][change_at_index] = blocker for we deepcopied
+                        last_colision.insert(0, blocker)
                         break
-                virtual_members[destination].remove(blocker)
-                if not cr_success:
-                    #print(f"Could not find a solution for blocker {blocker} while trying to fit {whitelist_requirement} in {destination}")
-                    last_colision.insert(0, blocker)
-                    return None
-                future_layout[destination][change_at_index] = -1
+                    future_layout[destination][change_at_index] = -1
+                else:
+                    future_layout[destination][future_layout[destination].index(-1)] = whitelist_requirement
+                    #print(f"Added {whitelist_requirement} to {destination}")
+                    return future_layout
+                continue
 
-                
-            future_layout[destination][future_layout[destination].index(-1)] = whitelist_requirement
-            #print(f"Added {whitelist_requirement} to {destination}")
-            return future_layout
+            return None
             
         # Add the members to the groups
         added_members = []
@@ -292,7 +286,7 @@ class GroupCalculator:
             # 2: Try fitting with CR
             # 3: Fill up rest with prioritys
         
-            res = change_request("A", whitelist_requirement=student, req_age=0, future_layout=deepcopy(group_layout))
+            res = change_request(whitelist_requirement=student, _future_layout=deepcopy(group_layout))
             if res is not None:
                 group_layout = res
                 added_members.append(student)

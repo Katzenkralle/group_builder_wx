@@ -615,7 +615,7 @@ class MainFrameHandler(main_frame.MainFrame):
             else:
                 self.reset_view()
             return
-        except group_compositor.InvalideGroupSize as e:
+        except ValueError as e:
             wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
             return
         finally:
