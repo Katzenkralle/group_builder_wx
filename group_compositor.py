@@ -235,7 +235,6 @@ class GroupCalculator:
                 group_ranking.append([group, sum(map(lambda x: x!=-1 and (x not in self.__whitlist[whitelist_requirement]), _future_layout[group]))])
             best_match = sorted(group_ranking, key=lambda x: x[1])
 
-            error_trace = {}
             for destination in map(lambda x: x[0], best_match):
                 future_layout = deepcopy(_future_layout)
                 blocking_members = list(filter(lambda x: whitelist_requirement not in self.__whitlist.get(x, students_list), future_layout[destination]))
@@ -256,23 +255,20 @@ class GroupCalculator:
                     response = change_request(whitelist_requirement=blocker, _future_layout=future_layout)
                     virtual_members[destination].remove(blocker)
 
-                    if response["success"]:
-                        future_layout = response["data"]
+                    if response is not None:
+                        future_layout = response
                     else:
                         #print(f"Could not find a solution for blocker {blocker} while trying to fit {whitelist_requirement} in {destination}")
                         # no need to reset future_layout[destination][change_at_index] = blocker for we deepcopied
                         last_colision.insert(0, blocker)
-                        error_trace[destination] = response["data"] + [blocker]
                         break
                     future_layout[destination][change_at_index] = -1
                 else:
                     future_layout[destination][future_layout[destination].index(-1)] = whitelist_requirement
                     #print(f"Added {whitelist_requirement} to {destination}")
-                    return {"success": True, "data": future_layout}
+                    return future_layout
                 continue
-            shortest_backtrace = list(sorted(error_trace.items(), key=lambda x: len(x[1])))[0][1] if error_trace != {} else []
-            return {"success": False, "data": shortest_backtrace}
-            
+            return None
         # Add the members to the groups
         added_members = []
         i = 0
@@ -285,8 +281,8 @@ class GroupCalculator:
             # 3: Fill up rest with prioritys
         
             res = change_request(whitelist_requirement=student, _future_layout=group_layout)
-            if res["success"]:
-                group_layout = res["data"]
+            if res is not None:
+                group_layout = res
                 added_members.append(student)
             else:
                 while True:
@@ -298,8 +294,8 @@ class GroupCalculator:
                     mutable_students_list.insert(0, member)
                     print(f"\nBacktracking {member}", end="")
                     res = change_request(whitelist_requirement=student, _future_layout=group_layout)
-                    if res["success"]:
-                        group_layout = res["data"]
+                    if res is not None:
+                        group_layout = res
                         added_members.append(student)
                         break
                     
