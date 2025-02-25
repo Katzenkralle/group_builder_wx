@@ -28,19 +28,35 @@ class CsvMeta:
     path: str #: The path to the CSV file.
     encoding: str #: The encoding of the CSV file.
 
-class InvalideGroupSize(Exception):
-    """
-    Exception raised when the number of students is less than the number of groups.
-    """
-    pass
-
 
 
 class GroupCalculator:
+    """
+    Class that is to be used to create groups given a number of members and groups.
+    If the number of members is less than the number of groups, an exception is raised.
+    Multiple iterations can be created by calling the create_groups method multiple times. Each iteration attempts to avoid reoccurring pairs of members.
+    If the number of students cannot be divided evenly by the number of groups, 
+    the remaining members are added to the groups one of the smalest groups with the least amount of conflicts.
+    """
+
     def __init__(self, n_members: int|None = 0, n_groups: int | None = None, allow_setting_invalid_inputs: bool = False):
+        """
+        Initializes the GroupCalculator object. Optionally sets the number of members and groups.
+
+        :param n_members: The number of members in the group.
+        :type n_members: int
+        :param n_groups: The number of groups to divide the members into.
+        :type n_groups: int
+        :param allow_setting_invalid_inputs: If True, the number of members and groups can be set to 0, non Int or None.
+        :type allow_setting_invalid_inputs: bool
+
+        :raises ValueError: The number of members or groups is invalid or set to an uncompatible value.
+
+        :return: None
+        """
         self.__allow_setting_invalid_inputs = allow_setting_invalid_inputs
         if n_members != None and n_groups != None and n_members <= n_groups:
-            raise InvalideGroupSize("The number of students must be greater than the number of groups")
+            raise ValueError("The number of members must be greater than the number of groups")
         self.__n_members: int|None = n_members
         self.__n_groups: int|None = n_groups
 
@@ -56,31 +72,78 @@ class GroupCalculator:
 
     @staticmethod
     def get_group_letter(group: int) -> str:
+        """
+        Returns the string representation of a group number.
+        For example, 0 returns 'A', 1 returns 'B', and 26 returns 'AA'.
+
+        :param group: The group number.
+        :type group: int
+
+        :return: The string representation of the group number.
+        :rtype: str
+        """
         res = "" 
         if group > 25:
             res += GroupCalculator.get_group_letter(group // 26)
         return f"{res}{chr(65 + group)}"
 
     def __replace_with_alias(self, iteration):
+        """
+        Replaces the members in the group with their aliases.
+
+        :param iteration: The iteration to replace the members in.
+        :type iteration: dict[str, list[str]]
+
+        :return: The iteration with the members replaced by their aliases.
+        :rtype: dict[str, list[str]]        
+        """
         for _, members in iteration.items():
             for member in members:
                 member = self.alias.get(member, member)
         return iteration
     
     def __try_calc_group_size(self):
+        """
+        Attempts to calculate the group size based on the number of members and groups
+        if the number of members and groups are set. Else does nothing.
+
+        :return: None
+        """
         if self.__n_members is not None and self.__n_groups is not None and self.__n_groups > 0:
             self.__group_size = self.__n_members // self.__n_groups
 
     @property
     def pair_repetition_brakepoinnt(self):
+        """
+        ‎ 
+
+        :return: The iteration number where the first pair repetition was detected.
+        :rtype: int
+        """
         return self.__pair_repetition_brakepoinnt
 
     @property
     def n_members(self):
+        """
+        ‎ 
+
+        :return: Returns the number of members in the group.
+        :rtype: int
+        """
         return self.__n_members
 
     @n_members.setter
     def n_members(self, value: int):
+        """
+        Sets the number of members in the group. If the value is less than or equal to 0, a ValueError is raised unless allow invalid inputs where allowed during creation.
+
+        :param value: The number of members in the group.
+        :type value: int
+
+        :raises ValueError: The number of members is less than or equal to 0.
+
+        :return: None        
+        """
         if not self.__allow_setting_invalid_inputs and value is not None and value <= 0:
             raise ValueError("The number of students must be greater than 0")
         self.reset_groups()
@@ -89,10 +152,26 @@ class GroupCalculator:
 
     @property
     def n_groups(self):
+        """
+        ‎
+
+        :return: The number of groups to divide the members into.
+        :rtype: int
+        """
         return self.__n_groups
     
     @n_groups.setter
     def n_groups(self, value: int):
+        """
+        Sets the number of groups to divide the members into. If the value is less than or equal to 0, a ValueError is raised unless allow invalid inputs where allowed during creation.
+
+        :param value: The number of groups to divide the members into.
+        :type value: int
+
+        :raises ValueError: The number of groups is less than or equal to 0.
+
+        :return: None
+        """
         if not self.__allow_setting_invalid_inputs and value is not None and value <= 0:
             raise ValueError("The number of groups must be greater than 0")
         self.reset_groups()
@@ -100,14 +179,29 @@ class GroupCalculator:
         self.__try_calc_group_size()
 
     def get_iteration(self):
+        """
+        Returns the current iteration number. -1 if no iterations have been created.
+
+        :return: The current iteration number.
+        :rtype: int
+        """
         return max(self.groups.keys(), default=-1) 
 
     def create_groups(self):
-        start_time = time.time()
+        """
+        Creates groups based on the number of members and groups set during object creation.
+        If the number of members or groups is not set, a ValueError is raised.
+
+        :raises ValueError: The number of students and groups must be set before creating groups.
+
+        :return: All groups from all iterations.
+        :rtype: dict[int, dict[str, list[str]]]
+        """
+
         if self.__n_members is None or self.__n_groups is None or self.__n_groups == 0 or self.__n_members == 0:
             raise ValueError("The number of students and groups must be set before creating groups")
         if self.__n_groups >= self.__n_members:
-            raise InvalideGroupSize("The number of students must be greater than the number of groups")
+            raise ValueError("The number of students must be greater than the number of groups")
         
         students_list: list[int] = list(range(self.__n_members))
         this_iteration = self.get_iteration()+1
@@ -221,8 +315,6 @@ class GroupCalculator:
                 last_colision = []
                 i += 1
 
-                    
-            
             
         # Add left over members to groups
         for student in mutable_students_list:
@@ -252,6 +344,18 @@ class GroupCalculator:
         return self.groups
     
     def get_current_group(self, iteration: int = None, replace_alias: bool = True):
+        """
+        Gets the current group for the given iteration. If no iteration is given, the latest iteration is returned.
+        If the iteration does not exist, an empty dictionary is returned.
+
+        :param iteration: The iteration to get the group from. If None, the latest iteration is returned.
+        :type iteration: int
+        :param replace_alias: If True, the members are replaced with their aliases using :meth:`__replace_with_alias`.
+        :type replace_alias: bool
+
+        :return: The current group for the given iteration.
+        :rtype: dict[str, list[str]]
+        """
         if self.groups == {}:
             return {}
         try:       
@@ -261,6 +365,15 @@ class GroupCalculator:
             return {}
     
     def get_all_groups(self, replace_alias: bool = True):
+        """
+        Gets all groups for all iterations.
+
+        :param replace_alias: If True, the members are replaced with their aliases using :meth:`__replace_with_alias`.
+        :type replace_alias: bool
+
+        :return: All groups for all iterations.
+        :rtype: dict[int, dict[str, list[str]]]
+        """
         ret_groups = self.groups.copy()
         if replace_alias:
             for iteration in ret_groups:
@@ -268,6 +381,17 @@ class GroupCalculator:
         return ret_groups
 
     def export_group_as_csv(self, iteration: int, path: str):
+        """
+        Exports the group for the given iteration to a CSV file.
+
+        :param iteration: The iteration to export the group from.
+        :type iteration: int
+        :param path: The path to the CSV file to export the group to.
+        :type path: str
+
+        :return: None
+        """
+
         groups = self.get_current_group(iteration, replace_alias=False)
         rows = []
         for group, members in groups.items():
@@ -279,11 +403,22 @@ class GroupCalculator:
             writer.writerows(rows)
 
     def reset_groups(self):
+        """
+        Resets the groups and internal state of the GroupCalculator object.
+        Alias and user input is not reset.
+
+        :return: None
+        """
         self.groups = {}
         self.__whitlist = None
         self.__pair_repetition_brakepoinnt = sys.maxsize
 
     def visualize_groups(self):
+        """
+        Prints the groups in a human-readable format to the CLI.
+
+        :return: None
+        """
         for iteration, groups in self.groups.items():
             print(f"Iteration {iteration}")
             for group, members in groups.items():
@@ -291,7 +426,14 @@ class GroupCalculator:
             print("\n")
 
     def read_csv_columns(self, path: str):
-        #list(df.keys())
+        """
+        Reads the headers of a CSV file and returns them as a list.
+        if the CSV file dose not have a header, the columns are named "Column n" where n is the column number.
+        Also stores meta data about the CSV file in object memory.
+
+        :param path: The header of the CSV file to read.
+        :type path: list[str]
+        """
         headers = []
         self.reset_groups()
         encoding = detect_encoding(path)
@@ -310,7 +452,17 @@ class GroupCalculator:
         return list(headers)
 
     def select_from_csv_file(self, header_name: list[str]):
-        # ToDO: remove byte order mark if at start of file
+        """
+        Sets the members of the group based on the max number of entrys in selected columns of the CSV file.
+        Also sets the alias of the members based on the selected columns value.
+
+        :param header_name: The name of the headers to select the members from.
+        :type header_name: list[str]
+
+        :raises ValueError: The given header name is not in the CSV file or no CSV file selected was selected.
+
+        :return: None
+        """
         header_name = list(filter(lambda x: x != "", header_name))
         if self.__csv_meta.path is None:
             raise ValueError("No CSV file selected.")   
@@ -338,6 +490,13 @@ class GroupCalculator:
         return 
 
     def can_repeat(self):
+        """
+        Tests how many iterations it takes to get a pair repetition in the groups.
+        
+        :return: The number of iterations it takes to get a pair repetition in the groups.
+        :rtype: int
+        """
+
         [mem_groups, mem_whitlist] = [self.groups, self.__whitlist]
         self.reset_groups()
         while test_uniqueness(self.create_groups())[1] <= 1:

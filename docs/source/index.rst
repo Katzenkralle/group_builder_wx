@@ -6,9 +6,8 @@
 Group Builder documentation
 ===========================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
+A simpl GUI application to create groups of people given a CSV file or the number of people per group and the number of groups that should be created.
+It was build using WxPython.
 
 
 .. toctree::
