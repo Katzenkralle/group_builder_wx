@@ -337,6 +337,7 @@ class GroupCalculator:
              
         # The whitlist was updated during the group creation
         self.groups[this_iteration] = group_layout
+        print("\nDone", end="")
         return self.groups
     
     def get_current_group(self, iteration: int = None, replace_alias: bool = True):

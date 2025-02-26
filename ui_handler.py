@@ -4,6 +4,8 @@ import wx
 from wx.lib.mixins.grid import GridAutoEditMixin
 import group_compositor
 import sys
+from utils import KillableThread
+
 group_creator = group_compositor.GroupCalculator(allow_setting_invalid_inputs=True)
 
 if 'app' not in globals():
@@ -473,7 +475,24 @@ class MainFrameHandler(main_frame.MainFrame):
         - reset_btn: :const:`wx.EVT_BUTTON` -> :meth:`reset_state`
         - export_csv_btn: :const:`wx.EVT_BUTTON` -> :meth:`on_export_csv`
         - iterations_choise: :const:`wx.EVT_CHOICE` -> :meth:`on_iteration` 
-    """
+        """
+    
+    @staticmethod
+    def execute_in_thread(func, kw_args, callback_func):
+        def wrapper():
+            res = None
+            try:
+                if kw_args is None:
+                    res = func()
+                else:
+                    res = func(kw_args)
+            except Exception as e:
+                print(e)
+            wx.CallAfter(callback_func, res)
+        proc = KillableThread(target=wrapper, daemon=True)
+        proc.start()
+        return proc
+
     def __init__(self, parent):
         """
         Constructs the main frame with the given parent widget and adds:
@@ -497,7 +516,7 @@ class MainFrameHandler(main_frame.MainFrame):
         self.notebook_modes.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_change)
 
         self.edit_aliases_btn.Bind(wx.EVT_BUTTON, self.on_edit_aliases)
-        self.new_iteration_btn.Bind(wx.EVT_BUTTON, self.on_new_iteration)
+        self.new_iteration_btn.Bind(wx.EVT_BUTTON, self.new_iteration_prep)
         self.reset_btn.Bind(wx.EVT_BUTTON, self.reset_state)
         self.export_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_csv)
 
@@ -511,7 +530,30 @@ class MainFrameHandler(main_frame.MainFrame):
         sys.stdout = RedirectText(self.cli_output)
         sys.stderr = RedirectText(self.cli_output)
 
-        self.on_new_iteration(None)
+        self.new_iteration_thread = None
+        self.new_iteration_prep()
+
+    def deactivate_buttons(self, ui_enabled = True, include_edit_aliases = True, include_new_iteration = True):
+        """
+        Enable or disable the buttons and inputs of the UI.
+
+        :param ui_enabled: If `True` the UI will be enabled - Defaults to `True`.
+        :type ui_enabled: bool
+        :param include_edit_aliases: If `True` the edit_aliases_btn will be included - Defaults to `True`.
+        :type include_edit_aliases: bool
+        :param include_new_iteration: If `True` the new_iteration_btn will be included - Defaults to `True`.
+        :type include_new_iteration: bool
+        """
+        self.InpNum.Enable(ui_enabled)
+        self.InpCsv.Enable(ui_enabled)
+        self.notebook_modes.Enable(ui_enabled)
+        self.reset_btn.Enable(ui_enabled)
+        self.export_csv_btn.Enable(ui_enabled)
+        self.iterations_choise.Enable(ui_enabled)
+        if include_edit_aliases:
+            self.edit_aliases_btn.Enable(ui_enabled)
+        if include_new_iteration:
+            self.new_iteration_btn.Enable(ui_enabled)
 
     def check_pair_repetition_warning(self):
         """
@@ -529,7 +571,6 @@ class MainFrameHandler(main_frame.MainFrame):
         else:
             self.pair_repetition_info.SetLabel(f"Ab Iteration {group_creator.pair_repetition_brakepoinnt} Wiederholung von Paaren")
         
-
     def reset_state(self, _, generate_new = True):
         """
         Resets the state of the group_creator object, also deleting aliases.
@@ -550,7 +591,7 @@ class MainFrameHandler(main_frame.MainFrame):
             except ValueError:
                 pass
         if generate_new:
-            self.on_new_iteration(None)
+            self.new_iteration_prep()
 
     def reset_view(self):
         """
@@ -572,7 +613,7 @@ class MainFrameHandler(main_frame.MainFrame):
         if iter_choise != wx.NOT_FOUND and group_creator.get_current_group(iter_choise):
             self.group_grid.rerender_groups(group_creator.get_current_group(iter_choise))
         else:
-            self.on_new_iteration(None)
+            self.new_iteration_prep()
 
     def on_iteration_view_change(self, event):
         """
@@ -609,11 +650,28 @@ class MainFrameHandler(main_frame.MainFrame):
                 print("Invalid page. This should not happen")
         #self.reset_view()
         if group_creator.n_groups and group_creator.n_members:
-            self.on_new_iteration(None)
+            self.new_iteration_prep()
         else:
             self.reset_view()
 
-    def on_new_iteration(self, _):
+    def new_iteration_prep(self, _ = None):
+        match self.new_iteration_btn.Label:
+            case "Abbrechen...":
+                if self.new_iteration_thread:
+                    self.new_iteration_thread.kill()
+                wx.EndBusyCursor()
+                self.new_iteration_btn.Label = "Neu Zusammensetzen"
+                self.deactivate_buttons(True, include_new_iteration=False)
+                return
+            case _:
+                wx.BeginBusyCursor()
+                self.new_iteration_btn.Label = "Abbrechen..."
+                self.deactivate_buttons(False, include_new_iteration=False)
+                self.new_iteration_thread = self.execute_in_thread(group_creator.create_groups, None, self.__new_iteration_handler)
+                return
+        
+
+    def __new_iteration_handler(self, return_value = None):
         """
         Create a new group composition and render it to the :class:`InteractiveGrid`.
         Also updates the itteration selection.
@@ -623,20 +681,16 @@ class MainFrameHandler(main_frame.MainFrame):
 
         :return: None
         """
-        try:
-            wx.BeginBusyCursor()
-            group_creator.create_groups()
-        except ValueError:
+        wx.EndBusyCursor()
+        self.new_iteration_btn.Label = "Neu Zusammensetzen"
+        self.deactivate_buttons(True, include_new_iteration=False)
+        if not return_value:
             if self.notebook_modes.GetSelection() == 0:
                 wx.MessageBox("Ungültig Gruppenkomposition.", "Error", wx.OK | wx.ICON_ERROR)
             else:
                 self.reset_view()
             return
-        except ValueError as e:
-            wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
-            return
-        finally:
-            wx.EndBusyCursor()
+                    
         new_group = group_creator.get_current_group()
         self.iterations_choise.Set(list(map(lambda x: str(x), range(group_creator.get_iteration()+1))))
         self.iterations_choise.SetSelection(group_creator.get_iteration())
@@ -671,13 +725,7 @@ class MainFrameHandler(main_frame.MainFrame):
         else:
             self.edit_aliases_btn.SetLabel("Alias bearbeiten")
             self.group_grid.rerender_groups(group_creator.get_current_group(self.iterations_choise.GetSelection()))
-        self.InpNum.Enable(ui_enabled)
-        self.InpCsv.Enable(ui_enabled)
-        self.notebook_modes.Enable(ui_enabled)
-        self.new_iteration_btn.Enable(ui_enabled)
-        self.reset_btn.Enable(ui_enabled)
-        self.export_csv_btn.Enable(ui_enabled)
-        self.iterations_choise.Enable(ui_enabled)
+        self.deactivate_buttons(ui_enabled, include_edit_aliases=False)
 
     def on_export_csv(self, _):
         """
