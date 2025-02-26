@@ -27,11 +27,25 @@ def detect_encoding(file_path):
     return detector.result.get('encoding', "utf-8")
 
 class KillableThread(threading.Thread):
-    def __init__(self, target=None, args=(), kwargs=None, daemon=True):
-        super().__init__(target=target, args=args, kwargs=kwargs or {}, daemon=daemon)
+    """
+    A thread class that supports killing the thread using ctypes.
+    It is not recommended for it may cause invalid states but it is the only way to kill a thread
+    that dose not listen to a flag.
+    """
+    def __init__(self, *args, **kwargs):
+        """
+        `See threading.Thread.__init__`
+        """
+        super().__init__(*args, **kwargs)
 
     def kill(self):
-        """Forcibly kills the thread using ctypes (use with caution)."""
+        """
+        Forcibly kills the thread using ctypes (use with caution).
+        
+        :raises RuntimeError: If the thread could not be killed.
+
+        :return: None
+        """
         if not self.is_alive() or self.ident is None:
             return
         

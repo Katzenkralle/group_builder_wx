@@ -19,6 +19,7 @@ It was build using WxPython.
    group_compositor
    ui_handler
    layout
+   utility
 
 Indices and tables
 ==================

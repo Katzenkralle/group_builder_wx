@@ -36,6 +36,43 @@ class ForceRerender(wx.PyCommandEvent):
         wx.PyCommandEvent.__init__(self, evtType, id)
 
 
+class RedirectText:
+    """
+    Redirects the output of the `sys.stdout` to a given `wx.TextCtrl`.
+    """
+    def __init__(self, text_ctrl):
+        """
+        Initializes the redirector with the given `wx.TextCtrl`.
+        
+        :param text_ctrl: The text control to redirect the output to.
+        :type text_ctrl: wx.TextCtrl
+
+        :return: None
+        """
+        self.out = text_ctrl
+
+    def write(self, string):
+        """
+        Writes the given string to the `wx.TextCtrl`.
+        If the string is "clear" the `wx.TextCtrl` will be cleared.
+
+        :param string: The string to write.
+        :type string: str
+
+        :return: None
+        """
+        if string == "clear":
+            wx.CallAfter(self.out.Clear)
+            return
+
+        wx.CallAfter(self.out.AppendText, string)
+
+    def flush(self):
+        """
+        Dummy methode. Required for compatibility with `sys.stdout`.
+        """
+        pass
+
 
 class InpUtilsMixin:
     """
@@ -448,20 +485,6 @@ class InteractiveGrid(wx.grid.Grid):
         self.Refresh()
 
 
-class RedirectText:
-    def __init__(self, text_ctrl):
-        self.out = text_ctrl
-
-    def write(self, string):
-        if string == "clear":
-            wx.CallAfter(self.out.Clear)
-            return
-
-        wx.CallAfter(self.out.AppendText, string)
-
-    def flush(self):
-        pass  # Required for compatibility with `sys.stdout`
-
 class MainFrameHandler(main_frame.MainFrame):
     """
     The "Hub" for all frontend interactions, and events.
@@ -475,10 +498,22 @@ class MainFrameHandler(main_frame.MainFrame):
         - reset_btn: :const:`wx.EVT_BUTTON` -> :meth:`reset_state`
         - export_csv_btn: :const:`wx.EVT_BUTTON` -> :meth:`on_export_csv`
         - iterations_choise: :const:`wx.EVT_CHOICE` -> :meth:`on_iteration` 
-        """
+    """
     
     @staticmethod
     def execute_in_thread(func, kw_args, callback_func):
+        """
+        Execute a function in a separate thread and call the callback function with the result.
+        A :class:`KillableThread` is used to enable the user to cancel the thread.
+
+        :param func: The function to execute.
+        :type func: function
+        :param kw_args: The arguments for the function.
+        :type kw_args: dict | None
+        :param callback_func: The function to call after the execution
+
+        :return: The thread object.
+        """
         def wrapper():
             res = None
             try:
@@ -520,12 +555,12 @@ class MainFrameHandler(main_frame.MainFrame):
         self.reset_btn.Bind(wx.EVT_BUTTON, self.reset_state)
         self.export_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_csv)
 
-        self.iterations_choise.Bind(wx.EVT_CHOICE, self.on_iteration_view_change)
+        self.iterations_choise.Bind(wx.EVT_CHOICE, self.on_iteration_change)
         
         self.group_grid = InteractiveGrid(self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, 0)
         self.grid_container.Add( self.group_grid, 1, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL, 5 )
 
-        self.notebook_modes.Bind(EVT_FORCE_RERENDER_BINDER, self.rerender_or_create)
+        self.notebook_modes.Bind(EVT_FORCE_RERENDER_BINDER, self.rerender_iter_or_create)
 
         sys.stdout = RedirectText(self.cli_output)
         sys.stderr = RedirectText(self.cli_output)
@@ -605,7 +640,7 @@ class MainFrameHandler(main_frame.MainFrame):
         except:
             pass
 
-    def rerender_or_create(self, _):
+    def rerender_iter_or_create(self, _):
         """
         Render the selected itteration to the :class:`InteractiveGrid` or create a new Itteration.
         """
@@ -615,7 +650,7 @@ class MainFrameHandler(main_frame.MainFrame):
         else:
             self.new_iteration_prep()
 
-    def on_iteration_view_change(self, event):
+    def on_iteration_change(self, event):
         """
         Render the selected itteration to the :class:`InteractiveGrid`.
         Check :meth:`check_pair_repetition_warning` to display a warning if the pair repetition is reached.
@@ -655,6 +690,16 @@ class MainFrameHandler(main_frame.MainFrame):
             self.reset_view()
 
     def new_iteration_prep(self, _ = None):
+        """
+        Prepare the generation of a new group composition.
+        If a new group composition is already being generated, the generation will be canceled.
+        The generation will be done in a separate thread to prevent the UI from freezing.
+        After the generation, :meth:`__new_iteration_handler` will be called.
+
+        :param _: The event that triggered the new iteration, not used by the Methode.
+
+        :return: None
+        """
         match self.new_iteration_btn.Label:
             case "Abbrechen...":
                 if self.new_iteration_thread:
@@ -673,11 +718,11 @@ class MainFrameHandler(main_frame.MainFrame):
 
     def __new_iteration_handler(self, return_value = None):
         """
-        Create a new group composition and render it to the :class:`InteractiveGrid`.
-        Also updates the itteration selection.
-        If the group composition is invalid, an error message will be displayed in a :class:`wx.MessageBox`.
+        Handle the visualization of the new group composition.
+        If the group composition is invalid, an error message will be displayed.
 
-        :param _: The event that triggered the new iteration, not used by the Methode.
+        :param return_value: The return value of the group composition generation.
+        :type return_value: dict{str: list[int]} | None
 
         :return: None
         """
