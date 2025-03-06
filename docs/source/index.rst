@@ -11,18 +11,32 @@ It was build using WxPython.
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
+   :titlesonly:
    :caption: Contents:
 
-
    main
-   group_compositor
-   ui_handler
-   layout
-   utility
+   group_creator/index
+   ui_handler/index
+
+Import structure and UML
+------------------------
+
+Imports:
+^^^^^^^^
+.. image:: packages_GroupBuilder.png
+   :align: center
+   :alt: Main Frame
+   
+Class Diagram:
+^^^^^^^^^^^^^^
+.. image:: classes_GroupBuilder.png
+   :align: center
+   :alt: Main Frame
+
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`

@@ -1,7 +1,7 @@
 import random
 from itertools import combinations
 from dataclasses import dataclass
-from utils import test_uniqueness, detect_encoding
+from .utils import test_uniqueness, detect_encoding
 import csv
 import time
 from copy import deepcopy
@@ -39,7 +39,20 @@ class GroupCalculator:
     the remaining members are added to the groups one of the smalest groups with the least amount of conflicts.
     """
 
-    def __init__(self, n_members: int|None = 0, n_groups: int | None = None, allow_setting_invalid_inputs: bool = False):
+    instance = None
+
+    def __new__(cls, *args, **kwargs):
+        """
+        Singleton implementation for the GroupCalculator class.
+
+        :return: The GroupCalculator object.
+        """
+        if cls.instance is None:
+            cls.instance = super().__new__(cls)
+            cls.instance._singolton_init(*args, **kwargs)
+        return cls.instance
+
+    def _singolton_init(self, n_members: int|None = 0, n_groups: int | None = None, allow_setting_invalid_inputs: bool = True):
         """
         Initializes the GroupCalculator object. Optionally sets the number of members and groups.
 

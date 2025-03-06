@@ -1,6 +1,6 @@
-Group Compositor Module
-=======================
-.. automodule:: group_compositor
+Utils
+=====
+.. automodule:: group_creator.utils
    :members:
    :undoc-members:
    :show-inheritance:

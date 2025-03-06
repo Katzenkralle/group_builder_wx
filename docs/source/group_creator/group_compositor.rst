@@ -1,7 +1,6 @@
-Ui Handler
-===========
-
-.. automodule:: ui_handler
+Group Compositor
+================
+.. automodule:: group_creator.group_compositor
    :members:
    :undoc-members:
    :show-inheritance:
