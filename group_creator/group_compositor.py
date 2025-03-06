@@ -284,33 +284,28 @@ class GroupCalculator:
             return None
         # Add the members to the groups
         added_members = []
-        i = 0
-        max_iterations = len(students_list)**2 if self.__pair_repetition_brakepoinnt == sys.maxsize else len(students_list)
+        i = 0 # I __should__ never become maxsize for it will be caught by backtrack_memory dubbeling
+        max_iterations = sys.maxsize-1 if self.__pair_repetition_brakepoinnt == sys.maxsize else len(students_list)
         mutable_students_list = deepcopy(students_list)
         backtrack_memory = {1: [], 0: []}
         while mutable_students_list != [] and i < max_iterations:
             student = mutable_students_list.pop()
-            # 2: Try fitting with CR
-            # 3: Fill up rest with prioritys
-        
-            res = change_request(whitelist_requirement=student, _future_layout=group_layout)
-            if res is not None:
-                group_layout = res
-                added_members.append(student)
-            else:
-                while True:
-                    member = added_members.pop(0)
-                    for group in group_layout:
-                        if member in group_layout[group]:
-                            group_layout[group][group_layout[group].index(member)] = -1
-                            break
-                    mutable_students_list.insert(0, member)
-                    print(f"\nBacktracking {member}")
-                    res = change_request(whitelist_requirement=student, _future_layout=group_layout)
-                    if res is not None:
-                        group_layout = res
-                        added_members.append(student)
+            
+            while True:
+                res = change_request(whitelist_requirement=student, _future_layout=group_layout)
+                if res is not None:
+                    group_layout = res
+                    added_members.append(student)
+                    break
+                
+                member = added_members.pop(0)
+                for group in group_layout:
+                    if member in group_layout[group]:
+                        group_layout[group][group_layout[group].index(member)] = -1
                         break
+                mutable_students_list.insert(0, member)
+                print(f"\nBacktracking {member}")
+                    
                     
             if len(backtrack_memory[0]) == len(backtrack_memory[1]) == self.n_members:
                 if backtrack_memory[0] == backtrack_memory[1]:

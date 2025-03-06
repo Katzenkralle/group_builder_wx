@@ -44,7 +44,7 @@ class RedirectText:
             return
         if string == "\n":
             return
-        wx.CallAfter(self.out.AppendText, f"{string.replace("\n", "")}\n")
+        wx.CallAfter(self.out.AppendText, f"\n{string.replace("\n", "")}")
 
     def flush(self):
         """

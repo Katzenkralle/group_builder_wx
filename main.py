@@ -1,4 +1,5 @@
 import wx
+import sys
 
 def start_app():
     """
@@ -6,8 +7,10 @@ def start_app():
     This function imports the MainFrameHandler from the ui_handler module,
     creates an instance of MainFrameHandler, shows the frame, and starts
     the application's main loop.
+    The App will imeediately exit with code 1 if the Python version is less than 3.12.
 
     *Note: the app object is a global variable that is defined in the main module. If executed as main.*
+
     
     :return: None
     """
@@ -17,5 +20,9 @@ def start_app():
     app.MainLoop()
 
 if __name__ == '__main__':
+    if sys.version_info < (3, 12):
+        print("Please use Python 3.12 or newer.")
+        exit(1)
+
     app = wx.App(False)
     start_app()
