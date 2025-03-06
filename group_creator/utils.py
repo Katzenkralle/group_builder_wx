@@ -54,8 +54,8 @@ class KillableThread(threading.Thread):
         )
         
         if res == 1:
-            print(f"\nSuccessfully killed thread {self.ident}.", end="")
+            print(f"\nSuccessfully killed thread {self.ident}.")
         else:
             # Reset the exception if something went wrong
             ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(self.ident), 0)
-            raise RuntimeError(f"\nFailed to kill thread {self.ident}", end="")
+            raise RuntimeError(f"\nFailed to kill thread {self.ident}")

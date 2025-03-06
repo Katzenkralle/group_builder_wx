@@ -210,8 +210,8 @@ class GroupCalculator:
         :return: All groups from all iterations.
         :rtype: dict[int, dict[str, list[str]]]
         """
-        print("clear", end="")
-        print("Creating groups...", end="")
+        print("clear")
+        print("Creating groups...")
 
         if self.__n_members is None or self.__n_groups is None or self.__n_groups == 0 or self.__n_members == 0:
             raise ValueError("The number of students and groups must be set before creating groups")
@@ -305,7 +305,7 @@ class GroupCalculator:
                             group_layout[group][group_layout[group].index(member)] = -1
                             break
                     mutable_students_list.insert(0, member)
-                    print(f"\nBacktracking {member}", end="")
+                    print(f"\nBacktracking {member}")
                     res = change_request(whitelist_requirement=student, _future_layout=group_layout)
                     if res is not None:
                         group_layout = res
@@ -314,7 +314,7 @@ class GroupCalculator:
                     
             if len(backtrack_memory[0]) == len(backtrack_memory[1]) == self.n_members:
                 if backtrack_memory[0] == backtrack_memory[1]:
-                    print("\nNo solution found", end="")
+                    print("\nNo solution found")
                     break
                 backtrack_memory[0] = []
                 backtrack_memory[1] = []
@@ -323,7 +323,7 @@ class GroupCalculator:
             else:
                 backtrack_memory[1].append(student)
             i += 1
-            print(f"\nAdded {student} to group", end="")
+            print(f"\nAdded {student} to group")
 
 
             
@@ -350,7 +350,7 @@ class GroupCalculator:
              
         # The whitlist was updated during the group creation
         self.groups[this_iteration] = group_layout
-        print("\nDone", end="")
+        print("\nDone")
         return self.groups
     
     def get_current_group(self, iteration: int = None, replace_alias: bool = True):

@@ -255,10 +255,7 @@ class MainFrameHandler(main_frame.MainFrame):
         self.new_iteration_btn.Label = "Neu Zusammensetzen"
         self.deactivate_buttons(True, include_new_iteration=False)
         if not return_value:
-            if self.notebook_modes.GetSelection() == 0:
-                wx.MessageBox("Ungültig Gruppenkomposition.", "Error", wx.OK | wx.ICON_ERROR)
-            else:
-                self.reset_view()
+            wx.MessageBox("Ungültig Gruppenkomposition.", "Error", wx.OK | wx.ICON_ERROR)
             return
                     
         new_group = group_creator().get_current_group()
