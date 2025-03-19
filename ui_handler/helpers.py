@@ -2,8 +2,7 @@ import wx
 
 class ForceRerender(wx.PyCommandEvent):
     """
-    Custom event to force the UI to rerender.
-    This event can be used to trigger a rerender of the UI components in a wxPython application.
+    Custom event to force the UI to re-rerender.
     
     :param evtType: The type of the event.
     :type evtType: int

@@ -19,6 +19,16 @@ It was build using WxPython.
    group_creator/index
    ui_handler/index
 
+Reports and Notes from the Author
+---------------------------------
+A report on how testing was conducted and an illustration regarding the functionality
+of the algorithm can be found in the following links:
+
+.. toctree::
+   :maxdepth: 2
+
+   reports_and_notes
+
 Import structure and UML
 ------------------------
 

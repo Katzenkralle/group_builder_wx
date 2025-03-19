@@ -14,28 +14,28 @@ class MainFrameHandler(main_frame.MainFrame):
     """
     The "Hub" for all frontend interactions, and events.
     Also implements the 'export to csv' functionality.
-    Layout is constructed in the base class :class:`layout.main_frame.MainFrame`.
+    Layout is constructed in the base class :class:`ui_handler.layout.main_frame.MainFrame`.
 
     The following events are bound:
         - notebook_modes: :const:`wx.EVT_NOTEBOOK_PAGE_CHANGED` -> :meth:`on_page_change`
         - edit_aliases_btn: :const:`wx.EVT_BUTTON` -> :meth:`on_edit_aliases`
-        - new_iteration_btn: :const:`wx.EVT_BUTTON` -> :meth:`on_new_iteration`
+        - new_iteration_btn: :const:`wx.EVT_BUTTON` -> :meth:`new_iteration_prep`
         - reset_btn: :const:`wx.EVT_BUTTON` -> :meth:`reset_state`
         - export_csv_btn: :const:`wx.EVT_BUTTON` -> :meth:`on_export_csv`
-        - iterations_choise: :const:`wx.EVT_CHOICE` -> :meth:`on_iteration` 
+        - iterations_choise: :const:`wx.EVT_CHOICE` -> :meth:`on_iteration_change` 
     """
     
     @staticmethod
     def execute_in_thread(func, kw_args, callback_func):
         """
         Execute a function in a separate thread and call the callback function with the result.
-        A :class:`KillableThread` is used to enable the user to cancel the thread.
+        A :class:`group_creator.utils.KillableThread` is used to enable the user to cancel the thread.
 
         :param func: The function to execute.
         :type func: function
         :param kw_args: The arguments for the function.
         :type kw_args: dict | None
-        :param callback_func: The function to call after the execution
+        :param callback_func: The function to call after the execution (recives result of `func`).
 
         :return: The thread object.
         """
@@ -56,11 +56,11 @@ class MainFrameHandler(main_frame.MainFrame):
     def __init__(self, parent):
         """
         Constructs the main frame with the given parent widget and adds:
-            - :class:`NumInpHandler` 
-            - :class:`CsvInpHandler`
-            - :class:`InteractiveGrid`
+            - :class:`ui_handler.input.NumInpHandler` 
+            - :class:`ui_handler.input.CsvInpHandler`
+            - :class:`ui_handler.interactive_grid.InteractiveGrid`
 
-        Then calls :meth:`on_new_iteration` to generate the first group composition.
+        Then calls :meth:`new_iteration_prep` to generate the first group composition.
 
         :param parent: The parent window for this handler.
         :type parent: wx.Window
@@ -167,7 +167,7 @@ class MainFrameHandler(main_frame.MainFrame):
 
     def rerender_iter_or_create(self, _):
         """
-        Render the selected itteration to the :class:`InteractiveGrid` or create a new Itteration.
+        Render the selected itteration to the :class:`ui_handler.interactive_grid.InteractiveGrid` or create a new Itteration.
         """
         iter_choise = self.iterations_choise.GetSelection()
         if iter_choise != wx.NOT_FOUND and group_creator().get_current_group(iter_choise):
@@ -177,7 +177,7 @@ class MainFrameHandler(main_frame.MainFrame):
 
     def on_iteration_change(self, event):
         """
-        Render the selected itteration to the :class:`InteractiveGrid`.
+        Render the selected itteration to the :class:`ui_handler.interactive_grid.InteractiveGrid`.
         Check :meth:`check_pair_repetition_warning` to display a warning if the pair repetition is reached.
 
         :param event: The event that triggered the change.
@@ -217,8 +217,9 @@ class MainFrameHandler(main_frame.MainFrame):
     def new_iteration_prep(self, _ = None):
         """
         Prepare the generation of a new group composition.
-        If a new group composition is already being generated, the generation will be canceled.
-        The generation will be done in a separate thread to prevent the UI from freezing.
+        If a new group composition is already being generated, the operation will be canceled.
+        The generation will be done in a separate thread, called by :meth:`execute_in_thread`
+        to prevent the UI from freezing.
         After the generation, :meth:`__new_iteration_handler` will be called.
 
         :param _: The event that triggered the new iteration, not used by the Methode.

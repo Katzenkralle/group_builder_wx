@@ -4,4 +4,4 @@ Group Compositor
    :members:
    :undoc-members:
    :show-inheritance:
-   :special-members: __init__
+   :special-members: __init__, __new__

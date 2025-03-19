@@ -34,18 +34,20 @@ class GroupCalculator:
     """
     Class that is to be used to create groups given a number of members and groups.
     If the number of members is less than the number of groups, an exception is raised.
-    Multiple iterations can be created by calling the create_groups method multiple times. Each iteration attempts to avoid reoccurring pairs of members.
+    Multiple iterations can be created by calling the :meth:`create_groups` method multiple times. Each iteration attempts to avoid reoccurring pairs of members.
     If the number of students cannot be divided evenly by the number of groups, 
     the remaining members are added to the groups one of the smalest groups with the least amount of conflicts.
+    This class is meant to be used as a singleton.
     """
 
     instance = None
 
     def __new__(cls, *args, **kwargs):
         """
-        Singleton implementation for the GroupCalculator class.
+        Singleton implementation for the :class:`GroupCalculator` class.
+        Returns the existing instance if it exists, else creates a new instance.
 
-        :return: The GroupCalculator object.
+        :return: The :class:`GroupCalculator` object.
         """
         if cls.instance is None:
             cls.instance = super().__new__(cls)
@@ -54,7 +56,7 @@ class GroupCalculator:
 
     def _singolton_init(self, n_members: int|None = 0, n_groups: int | None = None, allow_setting_invalid_inputs: bool = True):
         """
-        Initializes the GroupCalculator object. Optionally sets the number of members and groups.
+        Initializes the :class:`GroupCalculator` object. Optionally sets the number of members and groups.
 
         :param n_members: The number of members in the group.
         :type n_members: int
@@ -87,7 +89,7 @@ class GroupCalculator:
     def get_group_letter(group: int) -> str:
         """
         Returns the string representation of a group number.
-        For example, 0 returns 'A', 1 returns 'B', and 26 returns 'AA'.
+        For example: 0 returns 'A', 1 returns 'B', and 26 returns 'AA'.
 
         :param group: The group number.
         :type group: int
@@ -235,10 +237,8 @@ class GroupCalculator:
             group_layout[GroupCalculator.get_group_letter(i)].append(-1)
 
         virtual_members = {key: [] for key in group_layout} # Alternaativly pass blocked groups around (might be faster)
-        last_colision = []
         # Note the CR will never match none whitlist pairs
         def change_request(whitelist_requirement: int, _future_layout: dict[str, list[int]]) : # [bool, list[str] | dict[str, list[int]]]]
-            
             # Finde optimal destaination, the handover if required
             group_ranking = []
             for group in filter(lambda x: not all(y == -2 for y in _future_layout[x]) and # The group compleatly blocked \
@@ -273,7 +273,6 @@ class GroupCalculator:
                     else:
                         #print(f"Could not find a solution for blocker {blocker} while trying to fit {whitelist_requirement} in {destination}")
                         # no need to reset future_layout[destination][change_at_index] = blocker for we deepcopied
-                        last_colision.insert(0, blocker)
                         break
                     future_layout[destination][change_at_index] = -1
                 else:

@@ -6,6 +6,15 @@ import threading
 import ctypes
 
 def test_uniqueness(data):
+    """
+    Test the of pairs in multiple iterations of provided groups.
+
+    :param data: The data to test.
+    :type data: dict[str, dict[str, list[str]]]
+
+    :return: A list containing the minimum, maximum, and average number of pairs in the data. 
+    :rtype: list[int, int, float]
+    """
     pair_counts = defaultdict(int)
     for seq in data.values():
         for group in seq.values():
@@ -18,6 +27,16 @@ def test_uniqueness(data):
     return [min(pair_distribution.values()), max(pair_distribution.values()), sum(pair_distribution.values()) / len(pair_distribution)]
 
 def detect_encoding(file_path):
+    """
+    Detects the encoding of the file at the given path.
+    Defaults to utf-8 if the encoding can not be detected.
+
+    :param file_path: The path to the file.
+    :type file_path: str
+
+    :return: The encoding of the file.
+    :rtype: str
+    """
     detector = UniversalDetector()
     with open(file_path, 'rb') as file:
         for line in file:

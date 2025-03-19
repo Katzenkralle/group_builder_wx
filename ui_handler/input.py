@@ -55,7 +55,7 @@ class NumInpHandler(num_input.NumInput, InpUtilsMixin):
     """
     Handles the user input for the numeric input tab.
     Uses the :class:`InpUtilsMixin` to update the group composition with the user input.
-    Layout is constructed in the base class :class:`layout.num_input.NumInput`.
+    Layout is constructed in the base class :class:`ui_handler.layout.num_input.NumInput`.
     
     The following events are bound:
         - combo_members: :const:`wx.EVT_TEXT` -> :meth:`on_change_members`
@@ -113,7 +113,7 @@ class NumInpHandler(num_input.NumInput, InpUtilsMixin):
 
     def on_activation(self):
         """
-        Updates the values of groups and members in `group_creator` to the current values of the input fields
+        Updates the values of groups and members in :class:`group_creator.group_compositor.GroupCalculator` to the current values of the input fields
         by calling :meth:`InpUtilsMixin.on_group_composition_value_change`.
 
         :return: None
@@ -125,7 +125,7 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
     """
     Handles the user input for the CSV input tab.
     Uses the :class:`InpUtilsMixin` to update the group composition with the user input.
-    Layout is constructed in the base class :class:`layout.csv_input.CsvInput`.
+    Layout is constructed in the base class :class:`ui_handler.layout.csv_input.CsvInput`.
 
     The following events are bound:
         - csv_filepicker: :const:`wx.EVT_FILEPICKER_CHANGED` -> :meth:`on_csv_fileselect`
@@ -155,8 +155,10 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
     
     def on_activation(self):
         """
-        Sets the values of groups in `group_creator` to the current value of the input field by calling :meth:`InpUtilsMixin.on_group_composition_value_change`.
-        If a column of a CSV file is selected it will try to set the members in `group_creator` appropriately.
+        Sets the values of groups in :class:`group_creator.group_compositor.GroupCalculator`
+        to the current value of the input field by calling :meth:`InpUtilsMixin.on_group_composition_value_change`.
+        If a column of a CSV file is selected it will try to set the members in 
+        :class:`group_creator.group_compositor.GroupCalculator` appropriately.
         If the column selection is invalid, the value will be set to `None`        
 
         :return: None
@@ -184,10 +186,10 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
 
     def on_header_selection_change(self, _, trigger_rerender = True):
         """
-        Updates the members in `group_creator` with the selected columns from the CSV file.
+        Updates the members in :class:`group_creator.group_compositor.GroupCalculator` with the selected columns from the CSV file.
         
         :param _: The event that triggered the change, not used by the Methode.
-        :param trigger_rerender: If `True` a class:`ForceRerender` event will be posted to the parent window.
+        :param trigger_rerender: If `True` a :class:`ui_handler.helpers.ForceRerender` event will be posted to the parent window.
         :type trigger_rerender: bool
 
         :return: None
@@ -200,7 +202,7 @@ class CsvInpHandler(csv_input.CsvInput, InpUtilsMixin):
     def on_csv_fileselect(self, event):
         """
         Reads the columns of the selected CSV file and updates the choices in the header selection fields.
-        Also sets the recomended group size and posts a class:`ForceRerender` event to the parent window.
+        Also sets the recomended group size and posts a :class:`ui_handler.helpers.ForceRerender` event to the parent window.
 
         :param event: The event that triggered the file selection.
         :type event: wx.FileDirPickerEvent
