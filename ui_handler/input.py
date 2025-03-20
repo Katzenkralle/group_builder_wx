@@ -96,8 +96,11 @@ class NumInpHandler(num_input.NumInput, InpUtilsMixin):
         :return: None
         """
         self.on_group_composition_value_change("member", event.GetString())
-        self.combo_groups.Set([str(i) for i in range(2, group_creator().n_members//2)])
-        self.combo_groups.SetValue(str(group_creator().n_members//4))
+        try:
+            self.combo_groups.Set([str(i) for i in range(2, (group_creator().n_members//2+1))])
+            self.combo_groups.SetValue(str(group_creator().n_members//4))
+        except TypeError:
+            pass
 
     def Enable(self, enable=True):
         """
