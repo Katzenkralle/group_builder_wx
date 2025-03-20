@@ -6,9 +6,10 @@
 Group Builder documentation
 ===========================
 
-A simpl GUI application to create groups of people given a CSV file or the number of people per group and the number of groups that should be created.
+A simpl GUI application to create groups of people given a CSV file or the number of people per group with the number of groups that should be created.
 It was build using WxPython.
 
+----------------
 
 .. toctree::
    :maxdepth: 4

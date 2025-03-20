@@ -34,9 +34,13 @@ class GroupCalculator:
     """
     Class that is to be used to create groups given a number of members and groups.
     If the number of members is less than the number of groups, an exception is raised.
-    Multiple iterations can be created by calling the :meth:`create_groups` method multiple times. Each iteration attempts to avoid reoccurring pairs of members.
+    Multiple iterations can be created by calling the :meth:`create_groups` method multiple times. 
+    Each iteration attempts to avoid reoccurring pairs of members.
     If the number of students cannot be divided evenly by the number of groups, 
-    the remaining members are added to the groups one of the smalest groups with the least amount of conflicts.
+    the remaining members are added to one of the smalest groups with the least amount of conflicts.
+
+    To ensure object integrety, changing the configuration of number of members or amount of groups
+    will result in a reset of the object state.
     This class is meant to be used as a singleton.
     """
 
@@ -47,7 +51,7 @@ class GroupCalculator:
         Singleton implementation for the :class:`GroupCalculator` class.
         Returns the existing instance if it exists, else creates a new instance.
 
-        :return: The :class:`GroupCalculator` object.
+        :return: :class:`GroupCalculator`
         """
         if cls.instance is None:
             cls.instance = super().__new__(cls)
